@@ -1,0 +1,56 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'bevy_rpg'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=bevy_rpg",
+                    "--package=bevy_rpg"
+                ],
+                "filter": {
+                    "name": "bevy_rpg",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}",
+                // "RUST_BACKTRACE": "1",
+                // "RUST_LOG": "info,wgpu=error,bevy_rpg=debug",
+                "GAME_LOG": "bevy_rpg=debug",
+                "BEVY_LOG": "info,wgpu=error",
+            },
+            "sourceLanguages": [
+                "rust"
+            ]
+            // "terminal": "external"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'bevy_rpg'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=bevy_rpg",
+                    "--package=bevy_rpg"
+                ],
+                "filter": {
+                    "name": "bevy_rpg",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

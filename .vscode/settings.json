@@ -1,0 +1,4 @@
+{
+    "lldb.evaluationTimeout": 10,
+    "lldb.showDisassembly": "never",
+}
