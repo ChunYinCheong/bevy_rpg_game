@@ -7,15 +7,19 @@ use std::collections::{HashMap, HashSet};
 use self::world_cache::{WorldCache, WorldCachePlugin};
 
 use super::{
-    area::Area,
+    animation::AnimationState,
+    area::{Area, PlayerEnterEvent},
     blocker::Blocker,
+    chest::Chest,
+    editor::EditorRes,
     item::{Equipment, Inventory},
     player::Player,
     save::{ClearOnReset, ClearSave, SaveBuffer, WriteSaveFile},
     spatial_map::{CHUNK_SIZE, TILE_SIZE},
     tile_map::LoadMap,
     tiled_asset::TiledAsset,
-    unit::Unit,
+    trigger::EventTrigger,
+    unit::{Unit, UnitDieEvent},
 };
 
 mod world_cache;
@@ -154,11 +158,9 @@ impl WorldTile {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Component, Inspectable,
+    Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Component, Inspectable, Default,
 )]
-pub enum GameObjectId {
-    Tiled { x: i32, y: i32, id: u32 },
-}
+pub struct GameObjectId(pub String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Component, Inspectable)]
 pub enum GameObjectType {
@@ -172,6 +174,8 @@ pub enum GameObjectType {
     ResetPoint,
     Blocker,
     Area,
+    Chest,
+    Rock,
 }
 
 impl From<&str> for GameObjectType {
@@ -185,6 +189,7 @@ impl From<&str> for GameObjectType {
             "ResetPoint" => GameObjectType::ResetPoint,
             "Blocker" => GameObjectType::Blocker,
             "Area" => GameObjectType::Area,
+            "Chest" => GameObjectType::Chest,
             "" => {
                 warn!("Empty obj_type!");
                 GameObjectType::None
@@ -214,6 +219,11 @@ pub struct Ecs {
     pub areas: HashMap<GameObjectId, Area>,
     pub inventorys: HashMap<GameObjectId, Inventory>,
     pub equipments: HashMap<GameObjectId, Equipment>,
+    pub chests: HashMap<GameObjectId, Chest>,
+    pub enter_triggers: HashMap<GameObjectId, EventTrigger<PlayerEnterEvent>>,
+    pub die_triggers: HashMap<GameObjectId, EventTrigger<UnitDieEvent>>,
+    pub collision_groupss: HashMap<GameObjectId, (u32, u32)>,
+    pub animation_states: HashMap<GameObjectId, AnimationState>,
 }
 #[derive(Debug)]
 pub struct LoadObject(pub GameObjectId);
@@ -332,6 +342,7 @@ fn load_chunk(
     mut events: EventWriter<LoadObject>,
     chunks_q: Query<Entity, With<WorldChunkRoot>>,
     save: Res<SaveBuffer>,
+    editor: Res<EditorRes>,
 ) {
     let mut loaded = vec![];
     let chunk_root = match chunks_q.get_single() {
@@ -410,9 +421,9 @@ fn load_chunk(
             }
         }
         // Game Object
-        let v = cache.get_objects(&save, &(chunk.x, chunk.y));
+        let v = cache.get_objects(&save, &editor, &(chunk.x, chunk.y));
         if !v.is_empty() {
-            events.send_batch(v.iter().map(|id| LoadObject(*id)));
+            events.send_batch(v.iter().map(|id| LoadObject(id.clone())));
         }
     }
 
@@ -430,21 +441,22 @@ fn load_object(
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut loaded: ResMut<Loaded>,
     save: Res<SaveBuffer>,
+    editor: Res<EditorRes>,
 ) {
     for ev in events.iter() {
         // info!("LoadObject: {ev:?}");
-        let id = ev.0;
+        let id = &ev.0;
 
         if loaded.objects.contains(&id) {
             info!("LoadObject: {ev:?}, object already loaded");
             continue;
         } else {
             info!("LoadObject: {ev:?}, start loading object");
-            loaded.objects.insert(id);
+            loaded.objects.insert(id.clone());
         }
-        let entity = match cache.get_object_type(&save, &id) {
+        let entity = match cache.get_object_type(&save, &editor, &id) {
             Some(o) => {
-                let pos = cache.get_transform(&save, &id).unwrap();
+                let pos = cache.get_transform(&save, &editor, &id).unwrap();
                 let pos = (pos.0.x, pos.0.y).into();
                 info!("LoadObject: {ev:?}, object load pos: {pos:?}");
                 match o {
@@ -501,6 +513,18 @@ fn load_object(
                         &mut asset_server,
                         &mut texture_atlases,
                     ),
+                    GameObjectType::Chest => crate::plugins::chest::spawn_chest(
+                        &mut commands,
+                        pos,
+                        &mut asset_server,
+                        &mut texture_atlases,
+                    ),
+                    GameObjectType::Rock => crate::plugins::rock::spawn_rock(
+                        &mut commands,
+                        pos,
+                        &mut asset_server,
+                        &mut texture_atlases,
+                    ),
                 }
             }
             None => {
@@ -510,22 +534,39 @@ fn load_object(
         };
         info!("LoadObject: {ev:?}, object loaded, {entity:?}, {id:?}");
 
-        if let Some(u) = cache.get_unit(&save, &id) {
+        if let Some(u) = cache.get_unit(&save, &editor, &id) {
             commands.entity(entity).insert(u.clone());
         }
-        if let Some(u) = cache.get_blocker(&save, &id) {
+        if let Some(u) = cache.get_blocker(&save, &editor, &id) {
             commands.entity(entity).insert(u.clone());
         }
-        if let Some(u) = cache.get_area(&save, &id) {
+        if let Some(u) = cache.get_area(&save, &editor, &id) {
             commands.entity(entity).insert(u.clone());
         }
-        if let Some(u) = cache.get_inventory(&save, &id) {
+        if let Some(u) = cache.get_inventory(&save, &editor, &id) {
             commands.entity(entity).insert(u.clone());
         }
-        if let Some(u) = cache.get_equipment(&save, &id) {
+        if let Some(u) = cache.get_equipment(&save, &editor, &id) {
             commands.entity(entity).insert(u.clone());
         }
-        commands.entity(entity).insert(id);
+        if let Some(u) = cache.get_chest(&save, &editor, &id) {
+            commands.entity(entity).insert(u.clone());
+        }
+        if let Some(u) = cache.get_enter_trigger(&save, &editor, &id) {
+            commands.entity(entity).insert(u.clone());
+        }
+        if let Some(u) = cache.get_die_trigger(&save, &editor, &id) {
+            commands.entity(entity).insert(u.clone());
+        }
+        if let Some((memberships, filters)) = cache.get_collision_groups(&save, &editor, &id) {
+            commands
+                .entity(entity)
+                .insert(CollisionGroups::new(memberships, filters));
+        }
+        if let Some(u) = cache.get_animation_state(&save, &editor, &id) {
+            commands.entity(entity).insert(u.clone());
+        }
+        commands.entity(entity).insert(id.clone());
     }
 }
 
@@ -605,6 +646,6 @@ fn reset_world(
         clear_events.send(ClearSave);
 
         // Reload player
-        load_events.send(LoadObject(GameObjectId::Tiled { x: 0, y: -1, id: 4 }));
+        load_events.send(LoadObject(GameObjectId("player".into())));
     }
 }

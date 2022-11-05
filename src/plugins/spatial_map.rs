@@ -33,8 +33,8 @@ impl SpatialMap {
         let y = pos.1 as i32 / TILE_SIZE / CHUNK_SIZE;
         let key = (x, y);
         let vec = self.map.entry(key).or_default();
-        vec.push(id);
-        self.r_map.insert(id, key);
+        vec.push(id.clone());
+        self.r_map.insert(id.clone(), key);
     }
 
     pub fn remove(&mut self, id: &GameObjectId) {

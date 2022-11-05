@@ -31,6 +31,7 @@ pub struct Inventory {
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Inspectable)]
 pub enum ItemId {
     None,
+    Unknown,
     HpPotion,
     MpPotion,
     Sword,
@@ -41,6 +42,25 @@ impl Default for ItemId {
         Self::None
     }
 }
+impl From<&str> for ItemId {
+    fn from(s: &str) -> Self {
+        match s {
+            "HpPotion" => ItemId::HpPotion,
+            "MpPotion" => ItemId::MpPotion,
+            "Sword" => ItemId::Sword,
+            "Spear" => ItemId::Spear,
+            "" => {
+                warn!("Empty ItemId name!");
+                ItemId::None
+            }
+            _ => {
+                error!("Unknown ItemId name: {}", s);
+                ItemId::Unknown
+            }
+        }
+    }
+}
+
 impl ItemId {
     pub fn setting(&self) -> ItemaSetting {
         match self {
@@ -48,6 +68,13 @@ impl ItemId {
                 name: "None".to_string(),
                 kind: ItemKind::None,
             },
+            ItemId::Unknown => {
+                error!("Unknown ItemId setting");
+                ItemaSetting {
+                    name: "Unknown".to_string(),
+                    kind: ItemKind::None,
+                }
+            }
             ItemId::HpPotion => ItemaSetting {
                 name: "HpPotion".to_string(),
                 kind: ItemKind::Consume,

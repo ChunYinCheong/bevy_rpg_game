@@ -2,12 +2,12 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext};
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use bevy_rapier2d::prelude::*;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use crate::{INTERACT_GROUP, RAPIER_SCALE};
 
 use super::{
-    animation::{AnimationEntity, AnimationIndex, AnimationSheet, AnimationState, AnimationTimer},
+    animation::{AnimationData, AnimationSheet, AnimationState},
     interaction::Interaction,
     item::{Inventory, ItemId},
     player::Player,
@@ -80,27 +80,28 @@ pub fn spawn_shop(
                 },
                 ..Default::default()
             })
-            .insert(AnimationTimer(Timer::from_seconds(0.5, true)))
             .insert(AnimationSheet {
-                animations: HashMap::from([
-                    (UnitAnimation::Idle.to_string(), (0, 1)),
-                    (UnitAnimation::Walk.to_string(), (1, 2)),
-                    (UnitAnimation::Run.to_string(), (3, 2)),
-                    (UnitAnimation::Attack.to_string(), (5, 1)),
-                    (UnitAnimation::Stab.to_string(), (6, 1)),
-                    (UnitAnimation::BurstFire.to_string(), (7, 1)),
-                    (UnitAnimation::Hook.to_string(), (8, 1)),
-                ]),
+                animations: HashMap::from([(
+                    UnitAnimation::Idle.to_string(),
+                    AnimationData {
+                        start: 0,
+                        len: 1,
+                        frame_time: Duration::from_millis(500),
+                        repeat: true,
+                    },
+                )]),
             })
             .insert(AnimationState {
-                animation: UnitAnimation::Idle.to_string(),
+                name: UnitAnimation::Idle.to_string(),
+                index: 0,
+                duration: Duration::ZERO,
             })
-            .insert(AnimationIndex::default())
             .id()
     };
     commands
-        .spawn_bundle(SpatialBundle {
-            transform: Transform::from_translation(position.extend(0.0)),
+        .entity(animation_entity)
+        .insert_bundle(SpatialBundle {
+            transform: Transform::from_translation(position.extend(1.0)),
             ..Default::default()
         })
         .insert(Name::from("Shop"))
@@ -128,8 +129,6 @@ pub fn spawn_shop(
             ],
         })
         .insert(Interaction::Shop)
-        .add_child(animation_entity)
-        .insert(AnimationEntity(animation_entity))
         .id()
 }
 

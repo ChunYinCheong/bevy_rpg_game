@@ -4,11 +4,15 @@ use bevy_rapier2d::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{
+    animation::{AnimationSheet, AnimationState},
     damage::HitEvent,
     item::{Equipment, Inventory},
     knockback::KnockbackVec,
     movement::Movement,
-    save::{SaveEquipment, SaveGameObjectType, SaveInventory, SaveTransform, SaveUnit},
+    save::{
+        SaveAnimationState, SaveCollisionGroups, SaveEquipment, SaveGameObjectType, SaveInventory,
+        SaveTransform, SaveUnit,
+    },
     unit_action::{ActionData, ActionId, UnitAction, UnitActions},
     unit_state::{ActionState, UnitCommand},
 };
@@ -25,7 +29,8 @@ impl Plugin for UnitPlugin {
             .register_inspectable::<Unit>()
             .register_inspectable::<KillReward>()
             .add_system(unit_update)
-            .add_system(on_unit_hit);
+            .add_system(on_unit_hit)
+            .add_event::<UnitDieEvent>();
     }
 }
 
@@ -56,9 +61,29 @@ pub struct SpawnUnit {
     pub unit: Unit,
     pub translation: Vec2,
     pub action_ids: Vec<ActionId>,
+
+    pub texture_path: &'static str,
+    pub texture_columns: usize,
+    pub texture_rows: usize,
+    pub animation_sheet: AnimationSheet,
+    pub animation_state: AnimationState,
 }
 
-pub fn spawn_unit(s: SpawnUnit, commands: &mut Commands) -> Entity {
+pub fn spawn_unit(
+    s: SpawnUnit,
+    commands: &mut Commands,
+    asset_server: &mut Res<AssetServer>,
+    texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
+) -> Entity {
+    let texture_handle = asset_server.load(s.texture_path);
+    let texture_atlas = TextureAtlas::from_grid(
+        texture_handle,
+        Vec2::new(64.0, 64.0),
+        s.texture_columns,
+        s.texture_rows,
+    );
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+
     commands
         .spawn_bundle(SpatialBundle {
             transform: Transform::from_translation(s.translation.extend(0.0)),
@@ -87,6 +112,16 @@ pub fn spawn_unit(s: SpawnUnit, commands: &mut Commands) -> Entity {
         .insert(SaveUnit)
         .insert(SaveInventory)
         .insert(SaveEquipment)
+        .insert(SaveCollisionGroups)
+        .insert(SaveAnimationState)
+        // Animation
+        .insert_bundle(SpriteSheetBundle {
+            texture_atlas: texture_atlas_handle,
+            transform: Transform::from_translation(s.translation.extend(1.0)),
+            ..Default::default()
+        })
+        .insert(s.animation_sheet)
+        .insert(s.animation_state)
         // Rapier
         .insert(RigidBody::Dynamic)
         .insert(Velocity::default())
@@ -132,10 +167,13 @@ pub fn unit_update(
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct UnitDieEvent(pub Entity);
 pub fn on_unit_hit(
     mut events: EventReader<HitEvent>,
     mut unit_q: Query<(&mut Unit,)>,
     mut change_events: EventWriter<ChangeActionRequest>,
+    mut die_events: EventWriter<UnitDieEvent>,
 ) {
     for ev in events.iter() {
         if let Ok((mut unit,)) = unit_q.get_mut(ev.victim) {
@@ -147,6 +185,7 @@ pub fn on_unit_hit(
 
             if unit.hp <= 0 {
                 unit.dead = true;
+                die_events.send(UnitDieEvent(ev.victim));
 
                 change_events.send(ChangeActionRequest {
                     action_id: ActionId::Dead,

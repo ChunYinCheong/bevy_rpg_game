@@ -9,8 +9,6 @@ use crate::{
     RAPIER_SCALE,
 };
 
-pub const SPRITE_SCALE: f32 = 1.00;
-
 pub fn _spawn_bullet(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -134,6 +132,7 @@ pub fn spawn_melee(melee: Melee, commands: &mut Commands) -> Entity {
         .insert(Collider::from(melee.shape))
         .insert(ColliderMassProperties::Density(0.1))
         .insert(ActiveEvents::COLLISION_EVENTS)
+        .insert(ActiveCollisionTypes::all())
         .insert(Sensor)
         //
         .insert(MeleeParent {

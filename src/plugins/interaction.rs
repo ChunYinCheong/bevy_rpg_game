@@ -5,6 +5,7 @@ use bevy_rapier2d::prelude::*;
 use crate::{utils, INTERACT_GROUP, RAPIER_SCALE};
 
 use super::{
+    chest::ChestEvent,
     game_world::ResetEvent,
     player::Player,
     shop::{OpenShopEvent, Shop},
@@ -29,6 +30,7 @@ pub enum Interaction {
     Shop,
     Talk,
     ResetPoint,
+    Chest,
 }
 
 impl Default for Interaction {
@@ -37,6 +39,7 @@ impl Default for Interaction {
     }
 }
 
+#[derive(Debug)]
 pub struct InteractEvent {
     pub entity: Entity,
 }
@@ -80,8 +83,10 @@ fn interact_event(
     shop_query: Query<&Shop>,
     mut shop_events: EventWriter<OpenShopEvent>,
     mut reset_events: EventWriter<ResetEvent>,
+    mut chest_events: EventWriter<ChestEvent>,
 ) {
     for ev in events.iter() {
+        info!("{ev:?}");
         if let Ok(interact) = interactions.get(ev.entity) {
             match interact {
                 Interaction::None => (),
@@ -95,6 +100,9 @@ fn interact_event(
                 Interaction::Talk => todo!(),
                 Interaction::ResetPoint => {
                     reset_events.send(ResetEvent);
+                }
+                Interaction::Chest => {
+                    chest_events.send(ChestEvent { chest: ev.entity });
                 }
             }
         }

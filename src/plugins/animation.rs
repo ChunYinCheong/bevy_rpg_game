@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, time::Duration};
 
 use crate::res::GameWorldConfig;
 
@@ -9,43 +10,41 @@ pub struct AnimationPlugin;
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
         app.add_system(animation)
-            .add_system(animation_changed)
-            .register_inspectable::<AnimationEntity>()
-            .register_inspectable::<AnimationState>()
-            .register_inspectable::<AnimationIndex>();
+            .add_event::<ChangeAnimation>()
+            .add_system(change_animation)
+            .register_inspectable::<AnimationState>();
     }
 }
 
-#[derive(Debug, Component, Inspectable)]
-pub struct AnimationEntity(pub Entity);
-
 #[derive(Debug, Component)]
 pub struct AnimationSheet {
-    /// <enum, (index, len)>
-    pub animations: HashMap<String, (usize, usize)>,
+    /// <name, (index, len)>
+    pub animations: HashMap<String, AnimationData>,
 }
 
-#[derive(Debug, Component, Inspectable)]
+#[derive(Debug)]
+pub struct AnimationData {
+    /// start offset
+    pub start: usize,
+    pub len: usize,
+    pub frame_time: Duration,
+    pub repeat: bool,
+}
+
+#[derive(Debug, Clone, Component, Inspectable, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnimationState {
-    pub animation: String,
-}
-
-#[derive(Debug, Default, Component, Inspectable)]
-pub struct AnimationIndex {
+    pub name: String,
     pub index: usize,
+    // pub timer: Timer,
+    pub duration: Duration,
 }
-
-#[derive(Component, Deref, DerefMut)]
-pub struct AnimationTimer(pub Timer);
 
 pub fn animation(
     config: Res<GameWorldConfig>,
     time: Res<Time>,
     mut anim_q: Query<(
-        &mut AnimationTimer,
         &mut TextureAtlasSprite,
-        &mut AnimationIndex,
-        &AnimationState,
+        &mut AnimationState,
         &AnimationSheet,
     )>,
 ) {
@@ -53,40 +52,52 @@ pub fn animation(
         return;
     }
 
-    for (mut timer, mut sprite, mut ai, state, sheet) in anim_q.iter_mut() {
+    for (mut sprite, mut state, sheet) in anim_q.iter_mut() {
         // info!("animation! {:?}", state);
-        timer.tick(time.delta());
-        if timer.finished() {
-            // info!("animation timer finished! {:?}", state);
-            let (offset, len) = sheet.animations.get(&state.animation).unwrap_or(&(0, 1));
-            ai.index = (ai.index + 1) % len;
-            sprite.index = offset + ai.index;
+        if let Some(animation) = sheet.animations.get(&state.name) {
+            state.duration += time.delta();
+            if state.duration >= animation.frame_time {
+                state.duration -= animation.frame_time;
+                if animation.repeat {
+                    state.index = (state.index + 1) % animation.len;
+                    sprite.index = animation.start + state.index;
+                } else {
+                    state.index = animation.len - 1;
+                    sprite.index = animation.start + state.index;
+                }
+            }
         }
     }
 }
 
-pub fn animation_changed(
-    config: Res<GameWorldConfig>,
-    mut anim_q: Query<
-        (
-            &mut AnimationTimer,
-            &mut TextureAtlasSprite,
-            &mut AnimationIndex,
-            &AnimationState,
-            &AnimationSheet,
-        ),
-        Changed<AnimationState>,
-    >,
+#[derive(Debug)]
+pub struct ChangeAnimation {
+    pub entity: Entity,
+    pub name: String,
+}
+pub fn change_animation(
+    mut events: EventReader<ChangeAnimation>,
+    mut anim_q: Query<(
+        &mut TextureAtlasSprite,
+        &mut AnimationState,
+        &AnimationSheet,
+    )>,
 ) {
-    if !config.active {
-        return;
-    }
-
-    for (mut timer, mut sprite, mut ai, state, sheet) in anim_q.iter_mut() {
-        // info!("Changed! {:?}", state);
-        timer.reset();
-        let (offset, _) = sheet.animations.get(&state.animation).unwrap_or(&(0, 1));
-        ai.index = 0;
-        sprite.index = *offset;
+    for ev in events.iter() {
+        // info!("{ev:?}");
+        if let Ok((mut sprite, mut state, sheet)) = anim_q.get_mut(ev.entity) {
+            state.name = ev.name.clone();
+            state.duration = Duration::ZERO;
+            state.index = 0;
+            if let Some(animation) = sheet.animations.get(&state.name) {
+                sprite.index = animation.start;
+            } else {
+                error!(
+                    "Animation not found, Animation Name: {}, Entity: {:?}",
+                    &state.name, ev.entity
+                );
+                sprite.index = 0;
+            }
+        }
     }
 }

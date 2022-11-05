@@ -23,9 +23,11 @@ impl Plugin for UnitStatePlugin {
 #[derive(Debug, Default, Component, Inspectable)]
 pub struct UnitCommand {
     pub action_id: ActionId,
+    /// check zero lenght
+    pub movement_direction: Vec2,
     pub target_unit: Option<Entity>,
-    pub target_position: Vec2,
-    pub target_direction: Vec2,
+    pub target_position: Option<Vec2>,
+    pub target_direction: Option<Vec2>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Inspectable)]

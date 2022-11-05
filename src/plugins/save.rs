@@ -1,10 +1,13 @@
 use bevy::prelude::*;
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
+use bevy_rapier2d::prelude::CollisionGroups;
 use serde::{Deserialize, Serialize};
 use std::{fs::File, path::PathBuf};
 
 use super::{
+    animation::AnimationState,
     blocker::Blocker,
+    chest::Chest,
     game_world::{Ecs, GameObjectId, GameObjectType},
     item::{Equipment, Inventory},
     spatial_map::SpatialMap,
@@ -32,6 +35,12 @@ impl Plugin for SavePlugin {
             .add_system(save_inventory)
             .register_inspectable::<SaveEquipment>()
             .add_system(save_equipment)
+            .register_inspectable::<SaveChest>()
+            .add_system(save_chest)
+            .register_inspectable::<SaveCollisionGroups>()
+            .add_system(save_collision_groups)
+            .register_inspectable::<SaveAnimationState>()
+            .add_system(save_animation_state)
             .add_event::<WriteSaveFile>()
             .add_system(write_save_file)
             .add_event::<ClearSave>()
@@ -74,7 +83,7 @@ pub fn save_game_object_type(
             }
             None => (),
         }
-        save.0.data.objects.insert(*id, *obj);
+        save.0.data.objects.insert(id.clone(), *obj);
     }
 }
 
@@ -92,7 +101,7 @@ pub fn save_unit(
             }
             None => (),
         }
-        save.0.data.units.insert(*id, unit.clone());
+        save.0.data.units.insert(id.clone(), unit.clone());
     }
 }
 
@@ -115,12 +124,12 @@ pub fn save_transform(
         }
         // info!("Transform Changed: id: {id:?}, transform: {transform:?}");
         save.0.data.transforms.insert(
-            *id,
+            id.clone(),
             (transform.translation, transform.rotation, transform.scale),
         );
         save.0
             .map
-            .update(*id, transform.translation.truncate().into())
+            .update(id.clone(), transform.translation.truncate().into())
     }
 }
 
@@ -140,7 +149,7 @@ pub fn save_blocker(
             }
             None => (),
         }
-        save.0.data.blockers.insert(*id, obj.clone());
+        save.0.data.blockers.insert(id.clone(), obj.clone());
     }
 }
 
@@ -160,7 +169,7 @@ pub fn save_inventory(
             }
             None => (),
         }
-        save.0.data.inventorys.insert(*id, obj.clone());
+        save.0.data.inventorys.insert(id.clone(), obj.clone());
     }
 }
 
@@ -180,7 +189,76 @@ pub fn save_equipment(
             }
             None => (),
         }
-        save.0.data.equipments.insert(*id, obj.clone());
+        save.0.data.equipments.insert(id.clone(), obj.clone());
+    }
+}
+
+#[derive(Debug, Default, Component, Inspectable)]
+pub struct SaveChest;
+pub fn save_chest(
+    query: Query<(&Chest, &GameObjectId), (With<SaveChest>, Changed<Chest>)>,
+    mut save: ResMut<SaveBuffer>,
+) {
+    for (obj, id) in query.iter() {
+        info!("save_chest, id: {id:?}, obj: {obj:?}");
+        match save.0.data.chests.get(id) {
+            Some(v) => {
+                if v == obj {
+                    continue;
+                }
+            }
+            None => (),
+        }
+        save.0.data.chests.insert(id.clone(), obj.clone());
+    }
+}
+
+#[derive(Debug, Default, Component, Inspectable)]
+pub struct SaveCollisionGroups;
+pub fn save_collision_groups(
+    query: Query<
+        (&CollisionGroups, &GameObjectId),
+        (With<SaveCollisionGroups>, Changed<CollisionGroups>),
+    >,
+    mut save: ResMut<SaveBuffer>,
+) {
+    for (obj, id) in query.iter() {
+        info!("save_collision_groups, id: {id:?}, obj: {obj:?}");
+        match save.0.data.collision_groupss.get(id) {
+            Some(v) => {
+                if v.0 == obj.memberships && v.1 == obj.filters {
+                    continue;
+                }
+            }
+            None => (),
+        }
+        save.0
+            .data
+            .collision_groupss
+            .insert(id.clone(), (obj.memberships, obj.filters));
+    }
+}
+
+#[derive(Debug, Default, Component, Inspectable)]
+pub struct SaveAnimationState;
+pub fn save_animation_state(
+    query: Query<
+        (&AnimationState, &GameObjectId),
+        (With<SaveAnimationState>, Changed<AnimationState>),
+    >,
+    mut save: ResMut<SaveBuffer>,
+) {
+    for (obj, id) in query.iter() {
+        info!("save_animation_state, id: {id:?}, obj: {obj:?}");
+        match save.0.data.animation_states.get(id) {
+            Some(v) => {
+                if v == obj {
+                    continue;
+                }
+            }
+            None => (),
+        }
+        save.0.data.animation_states.insert(id.clone(), obj.clone());
     }
 }
 
@@ -234,7 +312,7 @@ pub fn save_reset(
             }
             None => (),
         }
-        save.0.data.resets.insert(*id, reset.clone());
+        save.0.data.resets.insert(id.clone(), reset.clone());
     }
 }
 

@@ -39,6 +39,10 @@ pub const INTERACT_GROUP: u32 = 0b0001;
 pub const UNIT_GROUP: u32 = 0b0010;
 
 fn main() {
+    // let s = ron::ser::to_string(&plugins::game_world::GameObjectType::Blocker).unwrap();
+    // println!("{s}");
+    // return;
+
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_file(true)
         .with_line_number(true)
@@ -106,6 +110,9 @@ fn main() {
         .add_plugin(plugins::reset_point::ResetPointPlugin)
         .add_plugin(plugins::blocker::BlockerPlugin)
         .add_plugin(plugins::area::AreaPlugin)
+        .add_plugin(plugins::chest::ChestPlugin)
+        .add_plugin(plugins::editor::EditorPlugin)
+        .add_plugin(plugins::trigger::TriggerPlugin)
         // utils
         .add_system(utils::sync_melee)
         // debug

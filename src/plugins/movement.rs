@@ -28,6 +28,7 @@ pub(crate) fn update_movement(
         return;
     }
     for (movement, mut vel, pos, ks, hooked) in query.iter_mut() {
+        let dir = movement.direction.normalize_or_zero();
         if let Some(ks) = ks {
             let k = ks
                 .knockbacks
@@ -36,10 +37,9 @@ pub(crate) fn update_movement(
                 .reduce(|accum, item| accum + item)
                 .unwrap_or_default();
             // info!("k: {k:?}, ks: {ks:?}");
-            vel.linvel =
-                (movement.direction * movement.speed + k / KNOCKBACK_DURATION) * RAPIER_SCALE;
+            vel.linvel = (dir * movement.speed + k / KNOCKBACK_DURATION) * RAPIER_SCALE;
         } else {
-            vel.linvel = movement.direction * movement.speed * RAPIER_SCALE;
+            vel.linvel = dir * movement.speed * RAPIER_SCALE;
         }
         if let Some(hooked) = hooked {
             if hooked.remain > 0.0 {
@@ -68,8 +68,7 @@ pub(crate) fn update_movement(
                 let y = angle / time.delta_seconds();
                 vel.angvel = y;
             }
-        } else if movement.direction.length_squared() > 0.0 {
-            let dir = Vec2::new(movement.direction.x, movement.direction.y);
+        } else if dir.length_squared() > 0.0 {
             let forward = crate::utils::get_forward(pos);
             let angle = forward.angle_between(dir);
 

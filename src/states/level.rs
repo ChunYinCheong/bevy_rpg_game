@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 
-use crate::plugins::game_world::LoadPosition;
+use crate::plugins::game_world::{GameObjectId, LoadObject};
 
 pub struct LevelRoot(Entity);
 
-pub fn setup(mut commands: Commands, mut load_events: EventWriter<LoadPosition>) {
+pub fn setup(mut commands: Commands, mut load_events: EventWriter<LoadObject>) {
     let root_entity = commands
         .spawn_bundle(SpatialBundle::default())
         .insert(Name::new("Level Root"))
@@ -17,8 +17,8 @@ pub fn setup(mut commands: Commands, mut load_events: EventWriter<LoadPosition>)
         commands.entity(root_entity).add_child(child);
     }
     {
-        // Init game world
-        load_events.send(LoadPosition(2720.0, 1200.0));
+        // Load player
+        load_events.send(LoadObject(GameObjectId("player".into())));
     }
 }
 

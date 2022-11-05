@@ -1,12 +1,11 @@
-use std::collections::HashMap;
-
 use bevy::prelude::*;
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use bevy_rapier2d::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, time::Duration};
 
 use super::{
-    animation::{AnimationEntity, AnimationIndex, AnimationSheet, AnimationState, AnimationTimer},
+    animation::{AnimationData, AnimationSheet, AnimationState},
     save::SaveBlocker,
     unit_action::UnitAnimation,
 };
@@ -16,16 +15,18 @@ impl Plugin for BlockerPlugin {
     fn build(&self, app: &mut App) {
         app
             //
-            .add_system(block)
+            .add_system(attach)
             .register_inspectable::<Blocker>()
             // .add_event::<HitEvent>()
             ;
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Component, Inspectable)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Component, Inspectable)]
 pub struct Blocker {
     pub blocking: bool,
+    pub hx: f32,
+    pub hy: f32,
 }
 
 pub fn spawn_blocker(
@@ -44,43 +45,94 @@ pub fn spawn_blocker(
                 texture_atlas: texture_atlas_handle,
                 transform: Transform {
                     translation: Vec3::new(0.0, 0.0, 1.0),
-                    rotation: Default::default(),
-                    // scale: Vec3::new(SCALE, SCALE, SCALE),
                     ..Default::default()
                 },
                 ..Default::default()
             })
-            .insert(AnimationTimer(Timer::from_seconds(0.5, true)))
             .insert(AnimationSheet {
                 animations: HashMap::from([
-                    (UnitAnimation::Idle.to_string(), (0, 1)),
-                    (UnitAnimation::Walk.to_string(), (1, 2)),
-                    (UnitAnimation::Run.to_string(), (3, 2)),
-                    (UnitAnimation::Attack.to_string(), (5, 1)),
-                    (UnitAnimation::Stab.to_string(), (6, 1)),
-                    (UnitAnimation::BurstFire.to_string(), (7, 1)),
-                    (UnitAnimation::Hook.to_string(), (8, 1)),
+                    (
+                        UnitAnimation::Idle.to_string(),
+                        AnimationData {
+                            start: 0,
+                            len: 1,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::Walk.to_string(),
+                        AnimationData {
+                            start: 1,
+                            len: 2,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::Run.to_string(),
+                        AnimationData {
+                            start: 3,
+                            len: 2,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::Attack.to_string(),
+                        AnimationData {
+                            start: 5,
+                            len: 1,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::Stab.to_string(),
+                        AnimationData {
+                            start: 6,
+                            len: 1,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::BurstFire.to_string(),
+                        AnimationData {
+                            start: 7,
+                            len: 1,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::Hook.to_string(),
+                        AnimationData {
+                            start: 8,
+                            len: 1,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
                 ]),
             })
             .insert(AnimationState {
-                animation: UnitAnimation::Idle.to_string(),
+                name: UnitAnimation::Idle.to_string(),
+                index: 0,
+                duration: Duration::ZERO,
             })
-            .insert(AnimationIndex::default())
             .id()
     };
     commands
-        .spawn()
+        // .spawn()
+        .entity(animation_entity)
         .insert_bundle(SpatialBundle {
             transform: Transform::from_translation(position.extend(0.0)),
             ..Default::default()
         })
         .insert(Name::new("Blocker"))
-        .insert(Blocker { blocking: false })
         // Save
         .insert(SaveBlocker)
-        // Sprite
-        .add_child(animation_entity)
-        .insert(AnimationEntity(animation_entity))
         // Rapier
         // .insert(RigidBody::Fixed)
         // .insert(Collider::cuboid(hx, hy))
@@ -88,13 +140,13 @@ pub fn spawn_blocker(
         .id()
 }
 
-pub fn block(mut commands: Commands, query: Query<(Entity, &Blocker), Changed<Blocker>>) {
+pub fn attach(mut commands: Commands, query: Query<(Entity, &Blocker), Changed<Blocker>>) {
     for (entity, a) in query.iter() {
         if a.blocking {
             commands
                 .entity(entity)
                 .insert(RigidBody::Fixed)
-                .insert(Collider::cuboid(32.0, 32.0))
+                .insert(Collider::cuboid(a.hx, a.hy))
                 .insert(Visibility { is_visible: true });
         } else {
             commands

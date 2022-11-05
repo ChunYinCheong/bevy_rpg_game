@@ -1,18 +1,19 @@
-use super::super::spatial_map::SpatialMap;
 use super::super::tiled_asset::TiledAsset;
 use super::super::unit::Unit;
-use super::Ecs;
 use super::GameObjectId;
 use super::GameObjectType;
 use super::WorldChunk;
+use crate::plugins::animation::AnimationState;
 use crate::plugins::area::Area;
-use crate::plugins::area::AreaEvent;
+use crate::plugins::area::PlayerEnterEvent;
 use crate::plugins::blocker::Blocker;
-use crate::plugins::game_world::MAP_SIZE;
+use crate::plugins::chest::Chest;
+use crate::plugins::editor::EditorRes;
 use crate::plugins::item::Equipment;
 use crate::plugins::item::Inventory;
 use crate::plugins::save::SaveBuffer;
-use crate::plugins::spatial_map::TILE_SIZE;
+use crate::plugins::trigger::EventTrigger;
+use crate::plugins::unit::UnitDieEvent;
 use bevy::prelude::*;
 use std;
 use std::collections::HashMap;
@@ -31,8 +32,6 @@ impl Plugin for WorldCachePlugin {
 
 #[derive(Debug, Default)]
 pub struct WorldCache {
-    pub map: SpatialMap,
-    pub map_ecs: Ecs,
     pub loading_chunk: HashSet<WorldChunk>,
     pub loaded_chunk: HashSet<WorldChunk>,
     pub chunk_tiled_files: HashMap<WorldChunk, HashSet<Handle<TiledAsset>>>,
@@ -64,9 +63,14 @@ impl WorldCache {
         }
     }
 
-    pub fn get_objects(&self, save: &SaveBuffer, chunk: &(i32, i32)) -> Vec<GameObjectId> {
+    pub fn get_objects(
+        &self,
+        save: &SaveBuffer,
+        editor: &EditorRes,
+        chunk: &(i32, i32),
+    ) -> Vec<GameObjectId> {
         let mut results = save.0.map.get_objects(chunk).cloned().unwrap_or_default();
-        if let Some(objs) = self.map.get_objects(chunk) {
+        if let Some(objs) = editor.map.get_objects(chunk) {
             let mut ids = objs
                 .iter()
                 .filter(|id| !results.contains(*id) && save.0.map.get_chunk(id) != Some(chunk))
@@ -77,73 +81,165 @@ impl WorldCache {
         results
     }
 
-    pub fn get_object_type(&self, save: &SaveBuffer, id: &GameObjectId) -> Option<GameObjectType> {
+    pub fn get_object_type(
+        &self,
+        save: &SaveBuffer,
+        editor: &EditorRes,
+        id: &GameObjectId,
+    ) -> Option<GameObjectType> {
         save.0
             .data
             .objects
             .get(id)
-            .or(self.map_ecs.objects.get(id))
+            .or(editor.ecs.objects.get(id))
             .cloned()
     }
-    pub fn get_unit(&self, save: &SaveBuffer, id: &GameObjectId) -> Option<Unit> {
+    pub fn get_unit(
+        &self,
+        save: &SaveBuffer,
+        editor: &EditorRes,
+        id: &GameObjectId,
+    ) -> Option<Unit> {
         save.0
             .data
             .units
             .get(id)
-            .or(self.map_ecs.units.get(id))
+            .or(editor.ecs.units.get(id))
             .cloned()
     }
     pub fn get_transform(
         &self,
         save: &SaveBuffer,
+        editor: &EditorRes,
         id: &GameObjectId,
     ) -> Option<(Vec3, Quat, Vec3)> {
         save.0
             .data
             .transforms
             .get(id)
-            .or(self.map_ecs.transforms.get(id))
+            .or(editor.ecs.transforms.get(id))
             .cloned()
     }
-    pub fn get_blocker(&self, save: &SaveBuffer, id: &GameObjectId) -> Option<Blocker> {
+    pub fn get_blocker(
+        &self,
+        save: &SaveBuffer,
+        editor: &EditorRes,
+        id: &GameObjectId,
+    ) -> Option<Blocker> {
         save.0
             .data
             .blockers
             .get(id)
-            .or(self.map_ecs.blockers.get(id))
+            .or(editor.ecs.blockers.get(id))
             .cloned()
     }
-    pub fn get_area(&self, save: &SaveBuffer, id: &GameObjectId) -> Option<Area> {
+    pub fn get_area(
+        &self,
+        save: &SaveBuffer,
+        editor: &EditorRes,
+        id: &GameObjectId,
+    ) -> Option<Area> {
         save.0
             .data
             .areas
             .get(id)
-            .or(self.map_ecs.areas.get(id))
+            .or(editor.ecs.areas.get(id))
             .cloned()
     }
-    pub fn get_inventory(&self, save: &SaveBuffer, id: &GameObjectId) -> Option<Inventory> {
+    pub fn get_inventory(
+        &self,
+        save: &SaveBuffer,
+        editor: &EditorRes,
+        id: &GameObjectId,
+    ) -> Option<Inventory> {
         save.0
             .data
             .inventorys
             .get(id)
-            .or(self.map_ecs.inventorys.get(id))
+            .or(editor.ecs.inventorys.get(id))
             .cloned()
     }
-    pub fn get_equipment(&self, save: &SaveBuffer, id: &GameObjectId) -> Option<Equipment> {
+    pub fn get_equipment(
+        &self,
+        save: &SaveBuffer,
+        editor: &EditorRes,
+        id: &GameObjectId,
+    ) -> Option<Equipment> {
         save.0
             .data
             .equipments
             .get(id)
-            .or(self.map_ecs.equipments.get(id))
+            .or(editor.ecs.equipments.get(id))
+            .cloned()
+    }
+    pub fn get_chest(
+        &self,
+        save: &SaveBuffer,
+        editor: &EditorRes,
+        id: &GameObjectId,
+    ) -> Option<Chest> {
+        save.0
+            .data
+            .chests
+            .get(id)
+            .or(editor.ecs.chests.get(id))
+            .cloned()
+    }
+    pub fn get_enter_trigger(
+        &self,
+        save: &SaveBuffer,
+        editor: &EditorRes,
+        id: &GameObjectId,
+    ) -> Option<EventTrigger<PlayerEnterEvent>> {
+        save.0
+            .data
+            .enter_triggers
+            .get(id)
+            .or(editor.ecs.enter_triggers.get(id))
+            .cloned()
+    }
+    pub fn get_die_trigger(
+        &self,
+        save: &SaveBuffer,
+        editor: &EditorRes,
+        id: &GameObjectId,
+    ) -> Option<EventTrigger<UnitDieEvent>> {
+        save.0
+            .data
+            .die_triggers
+            .get(id)
+            .or(editor.ecs.die_triggers.get(id))
+            .cloned()
+    }
+    pub fn get_collision_groups(
+        &self,
+        save: &SaveBuffer,
+        editor: &EditorRes,
+        id: &GameObjectId,
+    ) -> Option<(u32, u32)> {
+        save.0
+            .data
+            .collision_groupss
+            .get(id)
+            .or(editor.ecs.collision_groupss.get(id))
+            .cloned()
+    }
+    pub fn get_animation_state(
+        &self,
+        save: &SaveBuffer,
+        editor: &EditorRes,
+        id: &GameObjectId,
+    ) -> Option<AnimationState> {
+        save.0
+            .data
+            .animation_states
+            .get(id)
+            .or(editor.ecs.animation_states.get(id))
             .cloned()
     }
 }
 
-fn load_cache(
-    mut cache: ResMut<WorldCache>,
-    asset_server: Res<AssetServer>,
-    tileds: Res<Assets<TiledAsset>>,
-) {
+fn load_cache(mut cache: ResMut<WorldCache>, asset_server: Res<AssetServer>) {
     {
         // Tiled map file
         let cache = &mut *cache;
@@ -202,58 +298,6 @@ fn load_cache(
                             continue;
                         }
                         cache.loaded_tileds.insert(handle.clone());
-                        let tiled_asset = tileds.get(handle).unwrap();
-                        let tiled_map = &tiled_asset.map;
-                        // info!("Init tiled_asset: {:?},{:?}", tiled_asset.x, tiled_asset.y);
-                        for layer in tiled_map.layers() {
-                            match layer.layer_type() {
-                                tiled::LayerType::ObjectLayer(layer) => {
-                                    for object in layer.objects() {
-                                        let id = GameObjectId::Tiled {
-                                            x: tiled_asset.x,
-                                            y: tiled_asset.y,
-                                            id: object.id(),
-                                        };
-                                        let x = object.x
-                                            + (tiled_asset.x as i32 * TILE_SIZE * MAP_SIZE) as f32;
-                                        let y = -object.y
-                                            - (tiled_asset.y as i32 * TILE_SIZE * MAP_SIZE) as f32;
-                                        let (x, y) = match &object.shape {
-                                            tiled::ObjectShape::Rect { width, height } => {
-                                                cache.map_ecs.areas.insert(
-                                                    id,
-                                                    Area {
-                                                        event: AreaEvent::from(
-                                                            object.name.as_str(),
-                                                        ),
-                                                        hx: width / 2.0,
-                                                        hy: height / 2.0,
-                                                        disable: false,
-                                                    },
-                                                );
-                                                (x + width / 2.0, y - height / 2.0)
-                                            }
-                                            tiled::ObjectShape::Point(_, _) => (x, y),
-                                            _ => todo!(),
-                                        };
-                                        info!("Updating cache for object in map: {id:?}, obj_type: {}", object.obj_type);
-                                        cache.map.update(id, (x, y));
-
-                                        cache
-                                            .map_ecs
-                                            .objects
-                                            .insert(id, object.obj_type.as_str().into());
-                                        cache
-                                            .map_ecs
-                                            .transforms
-                                            .insert(id, ((x, y, 0.0).into(), default(), default()));
-                                    }
-                                }
-                                tiled::LayerType::TileLayer(_) => {}
-                                tiled::LayerType::ImageLayer(_) => {}
-                                tiled::LayerType::GroupLayer(_) => {}
-                            }
-                        }
                     }
                 }
                 bevy::asset::LoadState::Failed => {

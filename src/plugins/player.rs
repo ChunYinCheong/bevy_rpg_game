@@ -2,15 +2,14 @@ use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use std::collections::HashMap;
+use std::time::Duration;
 
+use super::animation::AnimationData;
 use super::item::{Equipment, InventoryUiRes, OpenInventoryEvent, SwitchEquipment};
-use super::movement::Movement;
 use super::save::{SaveTransform, SaveUnit};
 use super::unit_action::{ActionData, ActionId, UnitAnimation};
 use super::unit_state::{ActionState, UnitCommand};
-use crate::plugins::animation::{
-    AnimationEntity, AnimationIndex, AnimationSheet, AnimationState, AnimationTimer,
-};
+use crate::plugins::animation::{AnimationSheet, AnimationState};
 use crate::plugins::unit::{self, SpawnUnit, Unit};
 
 pub struct PlayerPlugin;
@@ -51,7 +50,6 @@ fn cursor_position(
     windows: Res<Windows>,
     q_camera: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     mut cont: Query<&mut PlayerController>,
-    mut p: Query<(&mut Movement, &GlobalTransform), With<Player>>,
     inventory: Res<InventoryUiRes>,
 ) {
     if inventory.show {
@@ -86,9 +84,6 @@ fn cursor_position(
             // eprintln!("World coords: {}/{}", world_pos.x, world_pos.y);
             for mut c in cont.iter_mut() {
                 c.mouse_pos = world_pos;
-            }
-            if let Ok((mut m, t)) = p.get_single_mut() {
-                m.face = Some(world_pos - t.translation().truncate());
             }
         }
     }
@@ -137,8 +132,15 @@ pub fn update_controller(
     }
 }
 
-pub fn update_command(mut query: Query<(&PlayerController, &mut UnitCommand, &Equipment)>) {
-    for (controller, mut command, equipment) in query.iter_mut() {
+pub fn update_command(
+    mut query: Query<(
+        &PlayerController,
+        &mut UnitCommand,
+        &Equipment,
+        &GlobalTransform,
+    )>,
+) {
+    for (controller, mut command, equipment, tran) in query.iter_mut() {
         let mut dir = Vec2::ZERO;
         if controller.down {
             dir.y -= 1.0;
@@ -158,11 +160,17 @@ pub fn update_command(mut query: Query<(&PlayerController, &mut UnitCommand, &Eq
             //     command.target_direction = dir.normalize();
             // } else {
             command.action_id = ActionId::Walk;
-            command.target_direction = dir.normalize();
+            command.movement_direction = dir;
+            command.target_direction = Some(dir.normalize());
             // }
         } else {
             command.action_id = ActionId::Idle;
+            command.movement_direction = Vec2::ZERO;
+            command.target_direction = Some(dir.normalize());
         }
+
+        command.target_position = Some(controller.mouse_pos);
+        command.target_direction = Some(controller.mouse_pos - tran.translation().truncate());
 
         if controller.main_attack {
             match equipment.weapons[equipment.current].setting().kind {
@@ -205,39 +213,6 @@ pub fn spawn_player(
     asset_server: &mut Res<AssetServer>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
 ) -> Entity {
-    let animation_entity = {
-        let texture_handle = asset_server.load("images/player/spritesheet.png");
-        let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 10, 1);
-        let texture_atlas_handle = texture_atlases.add(texture_atlas);
-        commands
-            .spawn_bundle(SpriteSheetBundle {
-                texture_atlas: texture_atlas_handle,
-                transform: Transform {
-                    translation: Vec3::new(0.0, 0.0, 1.0),
-                    rotation: Default::default(),
-                    // scale: Vec3::new(SCALE, SCALE, SCALE),
-                    ..Default::default()
-                },
-                ..Default::default()
-            })
-            .insert(AnimationTimer(Timer::from_seconds(0.5, true)))
-            .insert(AnimationSheet {
-                animations: HashMap::from([
-                    (UnitAnimation::Idle.to_string(), (0, 1)),
-                    (UnitAnimation::Walk.to_string(), (1, 2)),
-                    (UnitAnimation::Run.to_string(), (3, 2)),
-                    (UnitAnimation::Attack.to_string(), (5, 1)),
-                    (UnitAnimation::Stab.to_string(), (6, 1)),
-                    (UnitAnimation::BurstFire.to_string(), (7, 1)),
-                    (UnitAnimation::Hook.to_string(), (8, 1)),
-                ]),
-            })
-            .insert(AnimationState {
-                animation: UnitAnimation::Idle.to_string(),
-            })
-            .insert(AnimationIndex::default())
-            .id()
-    };
     let id = unit::spawn_unit(
         SpawnUnit {
             name: "Player",
@@ -253,15 +228,90 @@ pub fn spawn_player(
             },
             translation: position,
             action_ids: vec![ActionId::Idle, ActionId::Walk],
+            texture_path: "images/player/spritesheet.png",
+            texture_columns: 10,
+            texture_rows: 1,
+            animation_sheet: AnimationSheet {
+                animations: HashMap::from([
+                    (
+                        UnitAnimation::Idle.to_string(),
+                        AnimationData {
+                            start: 0,
+                            len: 1,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::Walk.to_string(),
+                        AnimationData {
+                            start: 1,
+                            len: 2,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::Run.to_string(),
+                        AnimationData {
+                            start: 3,
+                            len: 2,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::Attack.to_string(),
+                        AnimationData {
+                            start: 5,
+                            len: 1,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::Stab.to_string(),
+                        AnimationData {
+                            start: 6,
+                            len: 1,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::BurstFire.to_string(),
+                        AnimationData {
+                            start: 7,
+                            len: 1,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::Hook.to_string(),
+                        AnimationData {
+                            start: 8,
+                            len: 1,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                ]),
+            },
+            animation_state: AnimationState {
+                name: UnitAnimation::Idle.to_string(),
+                index: 0,
+                duration: Duration::ZERO,
+            },
         },
         commands,
+        asset_server,
+        texture_atlases,
     );
     commands
         .entity(id)
         .insert(Player {})
         .insert(PlayerController::default())
-        .add_child(animation_entity)
-        .insert(AnimationEntity(animation_entity))
         // Save
         .insert(SaveUnit)
         .insert(SaveTransform)

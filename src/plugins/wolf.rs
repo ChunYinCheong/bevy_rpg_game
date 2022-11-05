@@ -1,16 +1,15 @@
-use std::collections::HashMap;
-
 use bevy::prelude::*;
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
+use std::collections::HashMap;
+use std::time::Duration;
 
-use crate::plugins::animation::{AnimationEntity, AnimationIndex, AnimationSheet, AnimationState};
+use crate::plugins::animation::{AnimationSheet, AnimationState};
 use crate::plugins::player::Player;
 use crate::plugins::unit::{KillReward, Unit};
 use crate::res::GameWorldConfig;
-use crate::utils::SPRITE_SCALE;
 use crate::RAPIER_SCALE;
 
-use super::animation::AnimationTimer;
+use super::animation::AnimationData;
 use super::game_world::GameObjectType;
 use super::save::ClearOnReset;
 use super::unit::{self, SpawnUnit};
@@ -59,10 +58,12 @@ pub(crate) fn wolf_ai(
                     let dir = dir.normalize_or_zero();
                     if distance > 5.0 * RAPIER_SCALE {
                         command.action_id = ActionId::Walk;
-                        command.target_direction = dir;
+                        command.movement_direction = dir;
+                        command.target_direction = Some(dir);
                     } else {
                         command.action_id = ActionId::WolfAttack;
-                        command.target_direction = dir;
+                        command.movement_direction = Vec2::ZERO;
+                        command.target_direction = Some(dir);
                     }
                 }
                 _ => (),
@@ -74,6 +75,9 @@ pub(crate) fn wolf_ai(
                 ActionId::Dead => (),
                 _ => {
                     command.action_id = ActionId::Idle;
+                    command.movement_direction = Vec2::ZERO;
+                    command.target_direction = None;
+                    command.target_position = None;
                 }
             }
         }
@@ -87,36 +91,6 @@ pub fn spawn_wolf(
     asset_server: &mut Res<AssetServer>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
 ) -> Entity {
-    let animation_entity = {
-        let texture_handle = asset_server.load("images/wolf/spritesheet.png");
-        let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 5, 1);
-        let texture_atlas_handle = texture_atlases.add(texture_atlas);
-        commands
-            .spawn_bundle(SpriteSheetBundle {
-                texture_atlas: texture_atlas_handle,
-                transform: Transform {
-                    translation: Vec3::new(0.0, 0.0, 1.0),
-                    rotation: Default::default(),
-                    scale: Vec3::new(SPRITE_SCALE, SPRITE_SCALE, SPRITE_SCALE),
-                },
-                ..Default::default()
-            })
-            .insert(AnimationTimer(Timer::from_seconds(0.5, true)))
-            .insert(AnimationSheet {
-                animations: HashMap::from([
-                    (UnitAnimation::Idle.to_string(), (0, 1)),
-                    (UnitAnimation::Walk.to_string(), (1, 2)),
-                    (UnitAnimation::Attack.to_string(), (3, 1)),
-                    (UnitAnimation::Dead.to_string(), (4, 1)),
-                ]),
-            })
-            .insert(AnimationState {
-                animation: UnitAnimation::Idle.to_string(),
-            })
-            .insert(AnimationIndex::default())
-            .id()
-    };
-
     let id = unit::spawn_unit(
         SpawnUnit {
             name: "Wolf",
@@ -132,14 +106,62 @@ pub fn spawn_wolf(
             },
             translation: position,
             action_ids: vec![ActionId::Idle, ActionId::Walk],
+            texture_path: "images/wolf/spritesheet.png",
+            texture_columns: 5,
+            texture_rows: 5,
+            animation_sheet: AnimationSheet {
+                animations: HashMap::from([
+                    (
+                        UnitAnimation::Idle.to_string(),
+                        AnimationData {
+                            start: 0,
+                            len: 1,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::Walk.to_string(),
+                        AnimationData {
+                            start: 1,
+                            len: 2,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::Attack.to_string(),
+                        AnimationData {
+                            start: 3,
+                            len: 1,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                    (
+                        UnitAnimation::Dead.to_string(),
+                        AnimationData {
+                            start: 4,
+                            len: 1,
+                            frame_time: Duration::from_millis(500),
+                            repeat: true,
+                        },
+                    ),
+                ]),
+            },
+            animation_state: AnimationState {
+                name: UnitAnimation::Idle.to_string(),
+                index: 0,
+                duration: Duration::ZERO,
+            },
         },
         commands,
+        asset_server,
+        texture_atlases,
     );
 
     commands
         .entity(id)
-        .add_child(animation_entity)
-        .insert(AnimationEntity(animation_entity))
         .insert(Wolf {})
         .insert(WolfAi {})
         .insert(GameObjectType::Wolf)
