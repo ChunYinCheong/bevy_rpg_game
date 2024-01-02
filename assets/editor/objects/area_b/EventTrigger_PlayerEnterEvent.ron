@@ -1,0 +1,8 @@
+(
+    event: (),
+    actions: [
+        ShowBlocker(GameObjectId("blocker_b_1")),
+        ShowBlocker(GameObjectId("blocker_b_2")),
+        DisableArea(GameObjectId("area_b")),
+    ],
+)

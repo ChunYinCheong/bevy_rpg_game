@@ -1,15 +1,14 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use bevy_rapier2d::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, time::Duration};
 
-use crate::INTERACT_GROUP;
+use crate::{ALL_GROUP, INTERACT_GROUP};
 
 use super::{
     animation::{AnimationData, AnimationSheet, AnimationState, ChangeAnimation},
     item::{Inventory, ItemId},
-    player::Player,
+    player::Hero,
     save::SaveChest,
     unit_action::UnitAnimation,
 };
@@ -20,14 +19,14 @@ impl Plugin for ChestPlugin {
         app
             //
             // .add_system(block)
-            .register_inspectable::<Chest>()
+            .register_type::<Chest>()
             .add_event::<ChestEvent>()
             .add_system(open_chest)
             .add_system(update_sprite);
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Component, Inspectable)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Component, Reflect, Default)]
 pub struct Chest {
     pub opened: bool,
     pub item_id: ItemId,
@@ -37,15 +36,16 @@ pub fn spawn_chest(
     commands: &mut Commands,
     position: Vec2,
 
-    asset_server: &mut Res<AssetServer>,
+    asset_server: &Res<AssetServer>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
 ) -> Entity {
     let animation_entity = {
         let texture_handle = asset_server.load("images/chest/chest.png");
-        let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 2, 1);
+        let texture_atlas =
+            TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 2, 1, None, None);
         let texture_atlas_handle = texture_atlases.add(texture_atlas);
         commands
-            .spawn_bundle(SpriteSheetBundle {
+            .spawn(SpriteSheetBundle {
                 texture_atlas: texture_atlas_handle,
                 transform: Transform {
                     translation: Vec3::new(0.0, 0.0, 1.0),
@@ -85,7 +85,7 @@ pub fn spawn_chest(
     commands
         // .spawn()
         .entity(animation_entity)
-        .insert_bundle(SpatialBundle {
+        .insert(SpatialBundle {
             transform: Transform::from_translation(position.extend(1.0)),
             ..Default::default()
         })
@@ -101,7 +101,7 @@ pub fn spawn_chest(
         // Rapier
         .insert(RigidBody::Fixed)
         .insert(Collider::cuboid(32.0, 32.0))
-        .insert(CollisionGroups::new(INTERACT_GROUP, u32::MAX))
+        .insert(CollisionGroups::new(INTERACT_GROUP, ALL_GROUP))
         //
         .id()
 }
@@ -113,7 +113,7 @@ pub struct ChestEvent {
 pub fn open_chest(
     mut events: EventReader<ChestEvent>,
     mut chest_q: Query<&mut Chest>,
-    mut player_q: Query<&mut Inventory, With<Player>>,
+    mut player_q: Query<&mut Inventory, With<Hero>>,
 ) {
     for ev in events.iter() {
         info!("{ev:?}");

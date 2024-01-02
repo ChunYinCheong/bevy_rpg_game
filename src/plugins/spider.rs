@@ -1,49 +1,57 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::plugins::animation::{AnimationSheet, AnimationState};
-use crate::plugins::player::Player;
+use crate::plugins::player::Hero;
 use crate::plugins::unit::{KillReward, Unit};
 use crate::res::GameWorldConfig;
 use crate::RAPIER_SCALE;
 
+use super::actions::skill_id::SkillId;
 use super::animation::AnimationData;
 use super::game_world::GameObjectType;
 use super::save::ClearOnReset;
+use super::team::Team;
 use super::unit::{self, SpawnUnit};
-use super::unit_action::{ActionData, ActionId, UnitAnimation};
-use super::unit_state::{ActionState, UnitCommand};
+use super::unit_action::UnitAnimation;
+use super::unit_state::UnitState;
+use crate::plugins::units::unit_command::UnitCommand;
 
 pub struct SpiderPlugin;
 impl Plugin for SpiderPlugin {
     fn build(&self, app: &mut App) {
         app.add_system(spider_state)
-            .register_inspectable::<SpiderAi>()
-            .register_inspectable::<Spider>();
+            .register_type::<SpiderAi>()
+            .register_type::<Spider>();
     }
 }
 
-#[derive(Debug, Component, Inspectable)]
+#[derive(Debug, Component, Reflect)]
 pub struct Spider {}
 
-#[derive(Debug, Component, Inspectable)]
+#[derive(Debug, Component, Reflect)]
 pub struct SpiderAi {}
 
 pub fn spider_state(
     mut enemy_q: Query<
-        (Entity, &Transform, &Unit, &mut UnitCommand),
-        (With<SpiderAi>, Without<Player>),
+        (
+            Entity,
+            &GlobalTransform,
+            &Unit,
+            &mut UnitCommand,
+            &UnitState,
+        ),
+        (With<SpiderAi>, Without<Hero>),
     >,
-    player_q: Query<(&Transform, &Unit), (With<Player>, Without<SpiderAi>)>,
+    player_q: Query<(&GlobalTransform, &Unit), (With<Hero>, Without<SpiderAi>)>,
     config: Res<GameWorldConfig>,
 ) {
     if !config.active {
         return;
     }
     if let Ok((player, player_unit)) = player_q.get_single() {
-        for (_, pos, unit, mut command) in enemy_q.iter_mut() {
+        for (_, pos, unit, mut command, unit_state) in enemy_q.iter_mut() {
             if unit.dead {
                 continue;
             }
@@ -51,20 +59,18 @@ pub fn spider_state(
                 continue;
             }
 
-            match unit.action_id {
-                ActionId::Idle | ActionId::Walk => {
-                    let player_pos = player.translation.truncate();
-                    let spider_pos = pos.translation.truncate();
+            match unit_state.action_id {
+                SkillId::Idle | SkillId::MoveTo => {
+                    let player_pos = player.translation().truncate();
+                    let spider_pos = pos.translation().truncate();
                     let distance = player_pos.distance(spider_pos);
                     let dir = player_pos - spider_pos;
                     // info!("{player_pos} | {spider_pos} | {distance} | {dir}");
                     let dir = dir.normalize_or_zero();
                     if distance > 10.0 * RAPIER_SCALE {
-                        command.action_id = ActionId::Walk;
-                        command.movement_direction = dir;
-                        command.target_direction = Some(dir);
+                        command.action_id = SkillId::Idle;
                     } else {
-                        command.action_id = ActionId::SpiderAttack;
+                        command.action_id = SkillId::SpiderAttack;
                         command.movement_direction = Vec2::ZERO;
                         command.target_direction = Some(dir);
                     }
@@ -73,11 +79,11 @@ pub fn spider_state(
             }
         }
     } else {
-        for (_, _, unit, mut command) in enemy_q.iter_mut() {
-            match unit.action_id {
-                ActionId::Dead => (),
+        for (_, _, _, mut command, unit_state) in enemy_q.iter_mut() {
+            match unit_state.action_id {
+                SkillId::Dead => (),
                 _ => {
-                    command.action_id = ActionId::Idle;
+                    command.action_id = SkillId::Idle;
                     command.movement_direction = Vec2::ZERO;
                     command.target_direction = None;
                     command.target_position = None;
@@ -91,7 +97,7 @@ pub fn spawn_spider(
     commands: &mut Commands,
     position: Vec2,
 
-    asset_server: &mut Res<AssetServer>,
+    asset_server: &Res<AssetServer>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
 ) -> Entity {
     let id = unit::spawn_unit(
@@ -99,16 +105,22 @@ pub fn spawn_spider(
             name: "Spider",
             unit: Unit {
                 dead: false,
-                hp: 1,
+                hp: 50,
+                hp_max: 50,
+                atk: 5,
                 movement_speed: 3.0,
-                action_id: ActionId::Idle,
-                action_state: ActionState::Active,
-                action_time: None,
-                action_data: ActionData::None,
                 stun: 0.0,
             },
+            team: Team::Enemy,
             translation: position,
-            action_ids: vec![ActionId::Idle, ActionId::Walk],
+            action_ids: vec![
+                SkillId::Stun,
+                SkillId::Dead,
+                SkillId::Idle,
+                SkillId::MoveTo,
+                SkillId::Attack,
+                SkillId::SpiderAttack,
+            ],
             texture_path: "images/spider/spritesheet.png",
             texture_columns: 5,
             texture_rows: 5,

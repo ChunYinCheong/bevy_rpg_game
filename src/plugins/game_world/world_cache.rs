@@ -8,10 +8,10 @@ use crate::plugins::area::Area;
 use crate::plugins::area::PlayerEnterEvent;
 use crate::plugins::blocker::Blocker;
 use crate::plugins::chest::Chest;
-use crate::plugins::editor::EditorRes;
 use crate::plugins::item::Equipment;
 use crate::plugins::item::Inventory;
 use crate::plugins::save::SaveBuffer;
+use crate::plugins::scene_editor::scene_loader::SceneRes;
 use crate::plugins::trigger::EventTrigger;
 use crate::plugins::unit::UnitDieEvent;
 use bevy::prelude::*;
@@ -30,7 +30,7 @@ impl Plugin for WorldCachePlugin {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Resource)]
 pub struct WorldCache {
     pub loading_chunk: HashSet<WorldChunk>,
     pub loaded_chunk: HashSet<WorldChunk>,
@@ -57,16 +57,16 @@ impl WorldCache {
             Some(files) => {
                 // info!("ready, chunk: {chunk:?} ,files: {files:?}");
                 // info!("ready, self.loading_tileds: {:?}", &self.loading_tileds);
-                return self.loading_tileds.is_disjoint(files);
+                self.loading_tileds.is_disjoint(files)
             }
-            None => return false,
+            None => false,
         }
     }
 
     pub fn get_objects(
         &self,
         save: &SaveBuffer,
-        editor: &EditorRes,
+        editor: &SceneRes,
         chunk: &(i32, i32),
     ) -> Vec<GameObjectId> {
         let mut results = save.0.map.get_objects(chunk).cloned().unwrap_or_default();
@@ -84,7 +84,7 @@ impl WorldCache {
     pub fn get_object_type(
         &self,
         save: &SaveBuffer,
-        editor: &EditorRes,
+        editor: &SceneRes,
         id: &GameObjectId,
     ) -> Option<GameObjectType> {
         save.0
@@ -97,7 +97,7 @@ impl WorldCache {
     pub fn get_unit(
         &self,
         save: &SaveBuffer,
-        editor: &EditorRes,
+        editor: &SceneRes,
         id: &GameObjectId,
     ) -> Option<Unit> {
         save.0
@@ -110,7 +110,7 @@ impl WorldCache {
     pub fn get_transform(
         &self,
         save: &SaveBuffer,
-        editor: &EditorRes,
+        editor: &SceneRes,
         id: &GameObjectId,
     ) -> Option<(Vec3, Quat, Vec3)> {
         save.0
@@ -123,7 +123,7 @@ impl WorldCache {
     pub fn get_blocker(
         &self,
         save: &SaveBuffer,
-        editor: &EditorRes,
+        editor: &SceneRes,
         id: &GameObjectId,
     ) -> Option<Blocker> {
         save.0
@@ -136,7 +136,7 @@ impl WorldCache {
     pub fn get_area(
         &self,
         save: &SaveBuffer,
-        editor: &EditorRes,
+        editor: &SceneRes,
         id: &GameObjectId,
     ) -> Option<Area> {
         save.0
@@ -149,7 +149,7 @@ impl WorldCache {
     pub fn get_inventory(
         &self,
         save: &SaveBuffer,
-        editor: &EditorRes,
+        editor: &SceneRes,
         id: &GameObjectId,
     ) -> Option<Inventory> {
         save.0
@@ -162,7 +162,7 @@ impl WorldCache {
     pub fn get_equipment(
         &self,
         save: &SaveBuffer,
-        editor: &EditorRes,
+        editor: &SceneRes,
         id: &GameObjectId,
     ) -> Option<Equipment> {
         save.0
@@ -175,7 +175,7 @@ impl WorldCache {
     pub fn get_chest(
         &self,
         save: &SaveBuffer,
-        editor: &EditorRes,
+        editor: &SceneRes,
         id: &GameObjectId,
     ) -> Option<Chest> {
         save.0
@@ -188,7 +188,7 @@ impl WorldCache {
     pub fn get_enter_trigger(
         &self,
         save: &SaveBuffer,
-        editor: &EditorRes,
+        editor: &SceneRes,
         id: &GameObjectId,
     ) -> Option<EventTrigger<PlayerEnterEvent>> {
         save.0
@@ -201,7 +201,7 @@ impl WorldCache {
     pub fn get_die_trigger(
         &self,
         save: &SaveBuffer,
-        editor: &EditorRes,
+        editor: &SceneRes,
         id: &GameObjectId,
     ) -> Option<EventTrigger<UnitDieEvent>> {
         save.0
@@ -214,7 +214,7 @@ impl WorldCache {
     pub fn get_collision_groups(
         &self,
         save: &SaveBuffer,
-        editor: &EditorRes,
+        editor: &SceneRes,
         id: &GameObjectId,
     ) -> Option<(u32, u32)> {
         save.0
@@ -227,7 +227,7 @@ impl WorldCache {
     pub fn get_animation_state(
         &self,
         save: &SaveBuffer,
-        editor: &EditorRes,
+        editor: &SceneRes,
         id: &GameObjectId,
     ) -> Option<AnimationState> {
         save.0
@@ -245,7 +245,7 @@ fn load_cache(mut cache: ResMut<WorldCache>, asset_server: Res<AssetServer>) {
         let cache = &mut *cache;
         let mut loaded = vec![];
         for &chunk in cache.loading_chunk.iter() {
-            if !cache.chunk_tiled_files.contains_key(&chunk) {
+            cache.chunk_tiled_files.entry(chunk).or_insert_with(|| {
                 // info!("Adding tiled map file to load for {chunk:?}");
                 let mut hs = HashSet::new();
                 // info!(
@@ -283,10 +283,10 @@ fn load_cache(mut cache: ResMut<WorldCache>, asset_server: Res<AssetServer>) {
                     }
                 });
                 // info!("cache.chunk_tiled_files.insert: {chunk:?}, {hs:?}");
-                cache.chunk_tiled_files.insert(chunk, hs);
-            }
+                hs
+            });
             let handles = cache.chunk_tiled_files.get(&chunk).unwrap();
-            match asset_server.get_group_load_state(handles.iter().map(|h| h.id)) {
+            match asset_server.get_group_load_state(handles.iter().map(|h| h.id())) {
                 bevy::asset::LoadState::Loaded => {
                     // info!("Tiled map file for {chunk:?} are loaded now");
                     loaded.push(chunk);

@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use bevy_rapier2d::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, time::Duration};
@@ -16,13 +15,13 @@ impl Plugin for BlockerPlugin {
         app
             //
             .add_system(attach)
-            .register_inspectable::<Blocker>()
+            .register_type::<Blocker>()
             // .add_event::<HitEvent>()
             ;
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Component, Inspectable)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Component, Reflect, Default)]
 pub struct Blocker {
     pub blocking: bool,
     pub hx: f32,
@@ -33,15 +32,16 @@ pub fn spawn_blocker(
     commands: &mut Commands,
     position: Vec2,
 
-    asset_server: &mut Res<AssetServer>,
+    asset_server: &Res<AssetServer>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
 ) -> Entity {
     let animation_entity = {
         let texture_handle = asset_server.load("images/player/spritesheet.png");
-        let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 10, 1);
+        let texture_atlas =
+            TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 10, 1, None, None);
         let texture_atlas_handle = texture_atlases.add(texture_atlas);
         commands
-            .spawn_bundle(SpriteSheetBundle {
+            .spawn(SpriteSheetBundle {
                 texture_atlas: texture_atlas_handle,
                 transform: Transform {
                     translation: Vec3::new(0.0, 0.0, 1.0),
@@ -50,71 +50,15 @@ pub fn spawn_blocker(
                 ..Default::default()
             })
             .insert(AnimationSheet {
-                animations: HashMap::from([
-                    (
-                        UnitAnimation::Idle.to_string(),
-                        AnimationData {
-                            start: 0,
-                            len: 1,
-                            frame_time: Duration::from_millis(500),
-                            repeat: true,
-                        },
-                    ),
-                    (
-                        UnitAnimation::Walk.to_string(),
-                        AnimationData {
-                            start: 1,
-                            len: 2,
-                            frame_time: Duration::from_millis(500),
-                            repeat: true,
-                        },
-                    ),
-                    (
-                        UnitAnimation::Run.to_string(),
-                        AnimationData {
-                            start: 3,
-                            len: 2,
-                            frame_time: Duration::from_millis(500),
-                            repeat: true,
-                        },
-                    ),
-                    (
-                        UnitAnimation::Attack.to_string(),
-                        AnimationData {
-                            start: 5,
-                            len: 1,
-                            frame_time: Duration::from_millis(500),
-                            repeat: true,
-                        },
-                    ),
-                    (
-                        UnitAnimation::Stab.to_string(),
-                        AnimationData {
-                            start: 6,
-                            len: 1,
-                            frame_time: Duration::from_millis(500),
-                            repeat: true,
-                        },
-                    ),
-                    (
-                        UnitAnimation::BurstFire.to_string(),
-                        AnimationData {
-                            start: 7,
-                            len: 1,
-                            frame_time: Duration::from_millis(500),
-                            repeat: true,
-                        },
-                    ),
-                    (
-                        UnitAnimation::Hook.to_string(),
-                        AnimationData {
-                            start: 8,
-                            len: 1,
-                            frame_time: Duration::from_millis(500),
-                            repeat: true,
-                        },
-                    ),
-                ]),
+                animations: HashMap::from([(
+                    UnitAnimation::Idle.to_string(),
+                    AnimationData {
+                        start: 0,
+                        len: 1,
+                        frame_time: Duration::from_millis(500),
+                        repeat: true,
+                    },
+                )]),
             })
             .insert(AnimationState {
                 name: UnitAnimation::Idle.to_string(),
@@ -126,7 +70,7 @@ pub fn spawn_blocker(
     commands
         // .spawn()
         .entity(animation_entity)
-        .insert_bundle(SpatialBundle {
+        .insert(SpatialBundle {
             transform: Transform::from_translation(position.extend(0.0)),
             ..Default::default()
         })
@@ -140,13 +84,14 @@ pub fn spawn_blocker(
         .id()
 }
 
-pub fn attach(mut commands: Commands, query: Query<(Entity, &Blocker), Changed<Blocker>>) {
+fn attach(mut commands: Commands, query: Query<(Entity, &Blocker), Changed<Blocker>>) {
     for (entity, a) in query.iter() {
         if a.blocking {
             commands
                 .entity(entity)
                 .insert(RigidBody::Fixed)
-                .insert(Collider::cuboid(a.hx, a.hy))
+                // .insert(Collider::cuboid(a.hx, a.hy))
+                .insert(Collider::cuboid(32.0, 32.0))
                 .insert(Visibility { is_visible: true });
         } else {
             commands

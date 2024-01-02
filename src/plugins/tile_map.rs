@@ -21,7 +21,7 @@ impl Plugin for TileMapPlugin {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Resource)]
 pub struct TileMapRes {
     pub pending: HashSet<Handle<TiledAsset>>,
     pub loaded: HashSet<Handle<TiledAsset>>,
@@ -71,6 +71,8 @@ pub fn load_pending(
                         Vec2::new(tileset.tile_width as f32, tileset.tile_height as f32),
                         tileset.columns as usize,
                         (image.height / tileset.tile_height as i32) as usize,
+                        None,
+                        None,
                     );
                     let texture_atlas_handle = texture_atlases.add(texture_atlas);
                     tilesets.push(Some(texture_atlas_handle));
@@ -115,8 +117,8 @@ pub fn load_pending(
             tilemap.set_tiles(tiles);
 
             // Set up tilemap
-            let x = (TILE_SIZE / 2) + (asset.x as i32) * TILE_SIZE * MAP_SIZE;
-            let y = -(TILE_SIZE / 2) - (asset.y as i32) * TILE_SIZE * MAP_SIZE;
+            let x = (TILE_SIZE / 2) + asset.x * TILE_SIZE * MAP_SIZE;
+            let y = -(TILE_SIZE / 2) - asset.y * TILE_SIZE * MAP_SIZE;
             let texture_atlas_handle = tilesets.get(0).unwrap().as_ref().unwrap().clone();
             let tilemap_bundle = TileMapBundle {
                 tilemap,
@@ -127,7 +129,7 @@ pub fn load_pending(
 
             // Spawn tilemap
             commands
-                .spawn_bundle(tilemap_bundle)
+                .spawn(tilemap_bundle)
                 .insert(Name::new("TileMapBundle"));
         }
     }

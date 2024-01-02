@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use bevy_rapier2d::prelude::CollisionGroups;
 use serde::{Deserialize, Serialize};
 use std::{fs::File, path::PathBuf};
@@ -21,25 +20,25 @@ impl Plugin for SavePlugin {
         app
             //
             .add_startup_system(load_save)
-            .register_inspectable::<SaveGameObjectType>()
+            .register_type::<SaveGameObjectType>()
             .add_system(save_game_object_type)
-            .register_inspectable::<SaveUnit>()
+            .register_type::<SaveUnit>()
             .add_system(save_unit)
-            .register_inspectable::<SaveTransform>()
+            .register_type::<SaveTransform>()
             .add_system(save_transform)
-            .register_inspectable::<ClearOnReset>()
+            .register_type::<ClearOnReset>()
             .add_system(save_reset)
-            .register_inspectable::<SaveBlocker>()
+            .register_type::<SaveBlocker>()
             .add_system(save_blocker)
-            .register_inspectable::<SaveInventory>()
+            .register_type::<SaveInventory>()
             .add_system(save_inventory)
-            .register_inspectable::<SaveEquipment>()
+            .register_type::<SaveEquipment>()
             .add_system(save_equipment)
-            .register_inspectable::<SaveChest>()
+            .register_type::<SaveChest>()
             .add_system(save_chest)
-            .register_inspectable::<SaveCollisionGroups>()
+            .register_type::<SaveCollisionGroups>()
             .add_system(save_collision_groups)
-            .register_inspectable::<SaveAnimationState>()
+            .register_type::<SaveAnimationState>()
             .add_system(save_animation_state)
             .add_event::<WriteSaveFile>()
             .add_system(write_save_file)
@@ -54,16 +53,16 @@ pub struct Save {
     pub map: SpatialMap,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Resource)]
 pub struct SaveBuffer(pub Save);
 
-#[derive(Debug, Default, Component, Inspectable)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct SaveGameObjectType;
 
-#[derive(Debug, Default, Component, Inspectable)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct SaveUnit;
 
-#[derive(Debug, Default, Component, Inspectable)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct SaveTransform;
 
 pub fn save_game_object_type(
@@ -75,13 +74,10 @@ pub fn save_game_object_type(
 ) {
     for (obj, id) in query.iter() {
         info!("save_game_object_type, id: {id:?}, obj: {obj:?}");
-        match save.0.data.objects.get(id) {
-            Some(v) => {
-                if v == obj {
-                    continue;
-                }
+        if let Some(v) = save.0.data.objects.get(id) {
+            if v == obj {
+                continue;
             }
-            None => (),
         }
         save.0.data.objects.insert(id.clone(), *obj);
     }
@@ -93,13 +89,10 @@ pub fn save_unit(
 ) {
     for (unit, id) in query.iter() {
         // info!("save_unit, id: {id:?}, unit: {unit:?}");
-        match save.0.data.units.get(id) {
-            Some(v) => {
-                if v == unit {
-                    continue;
-                }
+        if let Some(v) = save.0.data.units.get(id) {
+            if v == unit {
+                continue;
             }
-            None => (),
         }
         save.0.data.units.insert(id.clone(), unit.clone());
     }
@@ -111,16 +104,13 @@ pub fn save_transform(
 ) {
     for (transform, id) in query.iter() {
         // info!("id: {id:?}, transform: {transform:?}");
-        match save.0.data.transforms.get(id) {
-            Some((translation, rotation, scale)) => {
-                if &transform.translation == translation
-                    && &transform.rotation == rotation
-                    && &transform.scale == scale
-                {
-                    continue;
-                }
+        if let Some((translation, rotation, scale)) = save.0.data.transforms.get(id) {
+            if &transform.translation == translation
+                && &transform.rotation == rotation
+                && &transform.scale == scale
+            {
+                continue;
             }
-            None => (),
         }
         // info!("Transform Changed: id: {id:?}, transform: {transform:?}");
         save.0.data.transforms.insert(
@@ -133,7 +123,7 @@ pub fn save_transform(
     }
 }
 
-#[derive(Debug, Default, Component, Inspectable)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct SaveBlocker;
 pub fn save_blocker(
     query: Query<(&Blocker, &GameObjectId), (With<SaveBlocker>, Changed<Blocker>)>,
@@ -141,19 +131,16 @@ pub fn save_blocker(
 ) {
     for (obj, id) in query.iter() {
         info!("save_blocker, id: {id:?}, obj: {obj:?}");
-        match save.0.data.blockers.get(id) {
-            Some(v) => {
-                if v == obj {
-                    continue;
-                }
+        if let Some(v) = save.0.data.blockers.get(id) {
+            if v == obj {
+                continue;
             }
-            None => (),
         }
         save.0.data.blockers.insert(id.clone(), obj.clone());
     }
 }
 
-#[derive(Debug, Default, Component, Inspectable)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct SaveInventory;
 pub fn save_inventory(
     query: Query<(&Inventory, &GameObjectId), (With<SaveInventory>, Changed<Inventory>)>,
@@ -161,19 +148,16 @@ pub fn save_inventory(
 ) {
     for (obj, id) in query.iter() {
         info!("save_inventory, id: {id:?}, obj: {obj:?}");
-        match save.0.data.inventorys.get(id) {
-            Some(v) => {
-                if v == obj {
-                    continue;
-                }
+        if let Some(v) = save.0.data.inventorys.get(id) {
+            if v == obj {
+                continue;
             }
-            None => (),
         }
         save.0.data.inventorys.insert(id.clone(), obj.clone());
     }
 }
 
-#[derive(Debug, Default, Component, Inspectable)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct SaveEquipment;
 pub fn save_equipment(
     query: Query<(&Equipment, &GameObjectId), (With<SaveEquipment>, Changed<Equipment>)>,
@@ -181,19 +165,16 @@ pub fn save_equipment(
 ) {
     for (obj, id) in query.iter() {
         info!("save_equipment, id: {id:?}, obj: {obj:?}");
-        match save.0.data.equipments.get(id) {
-            Some(v) => {
-                if v == obj {
-                    continue;
-                }
+        if let Some(v) = save.0.data.equipments.get(id) {
+            if v == obj {
+                continue;
             }
-            None => (),
         }
         save.0.data.equipments.insert(id.clone(), obj.clone());
     }
 }
 
-#[derive(Debug, Default, Component, Inspectable)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct SaveChest;
 pub fn save_chest(
     query: Query<(&Chest, &GameObjectId), (With<SaveChest>, Changed<Chest>)>,
@@ -201,19 +182,16 @@ pub fn save_chest(
 ) {
     for (obj, id) in query.iter() {
         info!("save_chest, id: {id:?}, obj: {obj:?}");
-        match save.0.data.chests.get(id) {
-            Some(v) => {
-                if v == obj {
-                    continue;
-                }
+        if let Some(v) = save.0.data.chests.get(id) {
+            if v == obj {
+                continue;
             }
-            None => (),
         }
         save.0.data.chests.insert(id.clone(), obj.clone());
     }
 }
 
-#[derive(Debug, Default, Component, Inspectable)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct SaveCollisionGroups;
 pub fn save_collision_groups(
     query: Query<
@@ -224,22 +202,19 @@ pub fn save_collision_groups(
 ) {
     for (obj, id) in query.iter() {
         info!("save_collision_groups, id: {id:?}, obj: {obj:?}");
-        match save.0.data.collision_groupss.get(id) {
-            Some(v) => {
-                if v.0 == obj.memberships && v.1 == obj.filters {
-                    continue;
-                }
+        if let Some(v) = save.0.data.collision_groupss.get(id) {
+            if v.0 == obj.memberships.bits() && v.1 == obj.filters.bits() {
+                continue;
             }
-            None => (),
         }
         save.0
             .data
             .collision_groupss
-            .insert(id.clone(), (obj.memberships, obj.filters));
+            .insert(id.clone(), (obj.memberships.bits(), obj.filters.bits()));
     }
 }
 
-#[derive(Debug, Default, Component, Inspectable)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct SaveAnimationState;
 pub fn save_animation_state(
     query: Query<
@@ -249,14 +224,11 @@ pub fn save_animation_state(
     mut save: ResMut<SaveBuffer>,
 ) {
     for (obj, id) in query.iter() {
-        info!("save_animation_state, id: {id:?}, obj: {obj:?}");
-        match save.0.data.animation_states.get(id) {
-            Some(v) => {
-                if v == obj {
-                    continue;
-                }
+        // info!("save_animation_state, id: {id:?}, obj: {obj:?}");
+        if let Some(v) = save.0.data.animation_states.get(id) {
+            if v == obj {
+                continue;
             }
-            None => (),
         }
         save.0.data.animation_states.insert(id.clone(), obj.clone());
     }
@@ -281,11 +253,11 @@ pub fn load_save(mut commands: Commands) {
     let path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         // .join(e.0);
         .join("assets/save/save.ron");
-    let f = File::open(&path).expect("Failed opening file");
+    let f = File::open(path).expect("Failed opening file");
     let save: Save = match ron::de::from_reader(f) {
         Ok(x) => x,
         Err(e) => {
-            println!("Failed to load Save: {}", e);
+            println!("Failed to load Save: {e}");
 
             std::process::exit(1);
         }
@@ -295,7 +267,7 @@ pub fn load_save(mut commands: Commands) {
 }
 
 #[derive(
-    Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Component, Inspectable,
+    Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Component, Reflect,
 )]
 pub struct ClearOnReset;
 pub fn save_reset(
@@ -304,13 +276,10 @@ pub fn save_reset(
 ) {
     for (reset, id) in query.iter() {
         info!("save_reset, id: {id:?}, ClearOnReset: {ClearOnReset:?}");
-        match save.0.data.resets.get(id) {
-            Some(v) => {
-                if v == reset {
-                    continue;
-                }
+        if let Some(v) = save.0.data.resets.get(id) {
+            if v == reset {
+                continue;
             }
-            None => (),
         }
         save.0.data.resets.insert(id.clone(), reset.clone());
     }
@@ -346,7 +315,12 @@ fn clear_save(
 
 pub struct WriteSaveFile;
 pub fn write_save_file(mut events: EventReader<WriteSaveFile>, cache: Res<SaveBuffer>) {
+    let mut skip = false;
     for _ in events.iter() {
+        if skip {
+            continue;
+        }
+        skip = true;
         // info!("Write save to file...");
         let pretty = ron::ser::PrettyConfig::new()
             // .depth_limit(2)

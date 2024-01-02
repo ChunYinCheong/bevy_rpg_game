@@ -1,0 +1,12 @@
+{
+    "patterns": [
+        {
+            "regexp": "map_x0*(-?\\d+)_y0*(-?\\d+)\\.tmx",
+            "multiplierX": 6400,
+            "multiplierY": 6400,
+            "offsetX": -6400,
+            "offsetY": -6400
+        }
+    ],
+    "type": "world"
+}

@@ -1,67 +1,77 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::plugins::animation::{AnimationSheet, AnimationState};
-use crate::plugins::player::Player;
+use crate::plugins::player::Hero;
 use crate::plugins::unit::{KillReward, Unit};
 use crate::res::GameWorldConfig;
 use crate::RAPIER_SCALE;
 
+use super::actions::skill_id::SkillId;
 use super::animation::AnimationData;
 use super::game_world::GameObjectType;
 use super::save::ClearOnReset;
+use super::team::Team;
 use super::unit::{self, SpawnUnit};
-use super::unit_action::{ActionData, ActionId, UnitAnimation};
-use super::unit_state::{ActionState, UnitCommand};
+use super::unit_action::UnitAnimation;
+use super::unit_state::UnitState;
+use crate::plugins::units::unit_command::UnitCommand;
 
 pub struct WolfPlugin;
 
 impl Plugin for WolfPlugin {
     fn build(&self, app: &mut App) {
         app.add_system(wolf_ai)
-            .register_inspectable::<WolfAi>()
-            .register_inspectable::<Wolf>();
+            .register_type::<WolfAi>()
+            .register_type::<Wolf>();
     }
 }
 
-#[derive(Debug, Component, Inspectable)]
+#[derive(Debug, Component, Reflect)]
 pub struct Wolf {}
 
-#[derive(Debug, Component, Inspectable)]
+#[derive(Debug, Component, Reflect)]
 pub struct WolfAi {}
 
 pub(crate) fn wolf_ai(
     mut enemy_q: Query<
-        (Entity, &Transform, &Unit, &mut UnitCommand),
-        (With<WolfAi>, Without<Player>),
+        (
+            Entity,
+            &GlobalTransform,
+            &Unit,
+            &mut UnitCommand,
+            &UnitState,
+        ),
+        (With<WolfAi>, Without<Hero>),
     >,
-    player_q: Query<&Transform, (With<Player>, Without<WolfAi>)>,
+    player_q: Query<&GlobalTransform, (With<Hero>, Without<WolfAi>)>,
     config: Res<GameWorldConfig>,
 ) {
     if !config.active {
         return;
     }
     if let Ok(player) = player_q.get_single() {
-        for (_, pos, unit, mut command) in enemy_q.iter_mut() {
+        for (_, pos, unit, mut command, unit_state) in enemy_q.iter_mut() {
             if unit.dead {
                 continue;
             }
-            match unit.action_id {
-                ActionId::Idle | ActionId::Walk => {
-                    let player_pos = player.translation.truncate();
-                    let wolf_pos = pos.translation.truncate();
+            match unit_state.action_id {
+                SkillId::Idle | SkillId::MoveTo => {
+                    let player_pos = player.translation().truncate();
+                    let wolf_pos = pos.translation().truncate();
                     let distance = player_pos.distance(wolf_pos);
                     let dir = player_pos - wolf_pos;
                     // info!("{player_pos} | {wolf_pos} | {distance} | {dir}");
                     let dir = dir.normalize_or_zero();
-                    if distance > 5.0 * RAPIER_SCALE {
-                        command.action_id = ActionId::Walk;
+                    if distance > 10.0 * RAPIER_SCALE {
+                        command.action_id = SkillId::Idle;
+                    } else if distance > 5.0 * RAPIER_SCALE {
+                        command.action_id = SkillId::MoveTo;
                         command.movement_direction = dir;
                         command.target_direction = Some(dir);
                     } else {
-                        command.action_id = ActionId::WolfAttack;
+                        command.action_id = SkillId::WolfAttack;
                         command.movement_direction = Vec2::ZERO;
                         command.target_direction = Some(dir);
                     }
@@ -70,11 +80,11 @@ pub(crate) fn wolf_ai(
             }
         }
     } else {
-        for (_, _, unit, mut command) in enemy_q.iter_mut() {
-            match unit.action_id {
-                ActionId::Dead => (),
+        for (_, _, _, mut command, unit_state) in enemy_q.iter_mut() {
+            match unit_state.action_id {
+                SkillId::Dead => (),
                 _ => {
-                    command.action_id = ActionId::Idle;
+                    command.action_id = SkillId::Idle;
                     command.movement_direction = Vec2::ZERO;
                     command.target_direction = None;
                     command.target_position = None;
@@ -88,7 +98,7 @@ pub fn spawn_wolf(
     commands: &mut Commands,
     position: Vec2,
 
-    asset_server: &mut Res<AssetServer>,
+    asset_server: &Res<AssetServer>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
 ) -> Entity {
     let id = unit::spawn_unit(
@@ -96,16 +106,15 @@ pub fn spawn_wolf(
             name: "Wolf",
             unit: Unit {
                 dead: false,
-                hp: 2,
+                hp: 30,
+                hp_max: 30,
+                atk: 1,
                 movement_speed: 5.0,
-                action_id: ActionId::Idle,
-                action_state: ActionState::Active,
-                action_time: None,
-                action_data: ActionData::None,
                 stun: 0.0,
             },
+            team: Team::Enemy,
             translation: position,
-            action_ids: vec![ActionId::Idle, ActionId::Walk],
+            action_ids: vec![SkillId::Idle, SkillId::MoveTo],
             texture_path: "images/wolf/spritesheet.png",
             texture_columns: 5,
             texture_rows: 5,

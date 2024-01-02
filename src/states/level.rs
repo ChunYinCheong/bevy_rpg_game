@@ -2,18 +2,19 @@ use bevy::prelude::*;
 
 use crate::plugins::game_world::{GameObjectId, LoadObject};
 
+#[derive(Resource)]
 pub struct LevelRoot(Entity);
 
 pub fn setup(mut commands: Commands, mut load_events: EventWriter<LoadObject>) {
     let root_entity = commands
-        .spawn_bundle(SpatialBundle::default())
+        .spawn(SpatialBundle::default())
         .insert(Name::new("Level Root"))
         .id();
     commands.insert_resource(LevelRoot(root_entity));
 
     {
         // Camera
-        let child = commands.spawn_bundle(Camera2dBundle::default()).id();
+        let child = commands.spawn(Camera2dBundle::default()).id();
         commands.entity(root_entity).add_child(child);
     }
     {

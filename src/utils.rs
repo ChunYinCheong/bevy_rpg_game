@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 use bevy::render::mesh::shape::Cube;
-use bevy_inspector_egui::Inspectable;
+
 use bevy_rapier2d::prelude::*;
 
 use crate::{
     components::{bullet::Bullet, lifespan::Lifespan},
-    plugins::damage::HitBox,
+    plugins::{damage::OnHitDamage, hit::Hit, team::Team},
     RAPIER_SCALE,
 };
 
@@ -18,7 +18,7 @@ pub fn _spawn_bullet(
     let forward = get_forward(&position);
     let linvel = forward * 50.0;
     commands
-        .spawn()
+        .spawn_empty()
         .insert(Bullet {})
         .insert(Lifespan { duration: 3.0 })
         // Rapier
@@ -33,7 +33,7 @@ pub fn _spawn_bullet(
         .insert(ActiveEvents::COLLISION_EVENTS)
         //
         .with_children(|builder| {
-            builder.spawn_bundle(PbrBundle {
+            builder.spawn(PbrBundle {
                 mesh: meshes.add(Mesh::from(Cube { size: 1.0 })),
                 material: materials.add(Color::rgb(0.0, 0.0, 0.9).into()),
                 transform: Transform::from_xyz(0.0, 0.0, 0.0),
@@ -76,20 +76,22 @@ pub struct Melee {
 
     pub source: Entity,
     pub shape: Shape,
+    pub target_team: Team,
 
     pub damage: i32,
     pub hit_stun: f32,
     pub knockback: Knockback,
 }
 
-#[derive(Debug, Clone, Copy, Inspectable)]
+#[derive(Debug, Clone, Copy, Reflect)]
 pub enum Shape {
     Ball(f32),
     Cuboid(f32, f32),
 }
 
-#[derive(Debug, Clone, Copy, Inspectable)]
+#[derive(Debug, Clone, Copy, Reflect)]
 pub enum Knockback {
+    None,
     Center(f32),
     Direction(f32, f32),
 }
@@ -112,13 +114,15 @@ pub fn spawn_melee(melee: Melee, commands: &mut Commands) -> Entity {
     next_pos.translation.y += offset.y;
 
     let id = commands
-        .spawn()
-        .insert_bundle(SpatialBundle {
+        .spawn(SpatialBundle {
             transform: next_pos,
             ..Default::default()
         })
         .insert(Name::new("Melee"))
-        .insert(HitBox {
+        .insert(Hit {
+            target_team: melee.target_team,
+        })
+        .insert(OnHitDamage {
             source: melee.source,
             damage: melee.damage,
             hit_stun: melee.hit_stun,
@@ -142,7 +146,7 @@ pub fn spawn_melee(melee: Melee, commands: &mut Commands) -> Entity {
         .id();
     id
 }
-#[derive(Debug, Component, Inspectable)]
+#[derive(Debug, Component, Reflect)]
 pub struct MeleeParent {
     pub entity: Entity,
     pub offset: Vec2,
@@ -150,13 +154,13 @@ pub struct MeleeParent {
 
 pub fn sync_melee(
     mut query: Query<(&mut Transform, &MeleeParent), With<MeleeParent>>,
-    parent: Query<&Transform, Without<MeleeParent>>,
+    parent: Query<&GlobalTransform, Without<MeleeParent>>,
 ) {
     for (mut pos, melee) in query.iter_mut() {
         if let Ok(parent) = parent.get(melee.entity) {
-            let mut next_pos = *parent;
+            let mut next_pos = Transform::from(*parent);
 
-            let forward = get_forward(parent);
+            let forward = get_forward_global(parent);
             let offset = forward * melee.offset.x * RAPIER_SCALE;
             next_pos.translation.x += offset.x;
             next_pos.translation.y += offset.y;
@@ -176,6 +180,7 @@ pub struct Projectile {
 
     pub source: Entity,
     pub shape: Shape,
+    pub target_team: Team,
 
     pub damage: i32,
     pub hit_stun: f32,
@@ -184,13 +189,15 @@ pub struct Projectile {
 
 pub fn spawn_projectile(projectile: Projectile, commands: &mut Commands) -> Entity {
     commands
-        .spawn()
-        .insert_bundle(SpatialBundle {
+        .spawn(SpatialBundle {
             transform: projectile.position,
             ..Default::default()
         })
         .insert(Name::new("Projectile"))
-        .insert(HitBox {
+        .insert(Hit {
+            target_team: projectile.target_team,
+        })
+        .insert(OnHitDamage {
             source: projectile.source,
             damage: projectile.damage,
             hit_stun: projectile.hit_stun,

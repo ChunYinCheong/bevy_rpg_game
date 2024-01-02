@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, time::Duration};
 
@@ -12,7 +11,7 @@ impl Plugin for AnimationPlugin {
         app.add_system(animation)
             .add_event::<ChangeAnimation>()
             .add_system(change_animation)
-            .register_inspectable::<AnimationState>();
+            .register_type::<AnimationState>();
     }
 }
 
@@ -31,7 +30,7 @@ pub struct AnimationData {
     pub repeat: bool,
 }
 
-#[derive(Debug, Clone, Component, Inspectable, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Component, Reflect, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct AnimationState {
     pub name: String,
     pub index: usize,

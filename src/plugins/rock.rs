@@ -1,15 +1,15 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use bevy_rapier2d::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, time::Duration};
 
 use super::{
+    actions::skill_id::SkillId,
     animation::{AnimationData, AnimationSheet, AnimationState},
     game_world::GameObjectType,
+    team::Team,
     unit::{self, SpawnUnit, Unit},
-    unit_action::{ActionData, ActionId, UnitAnimation},
-    unit_state::ActionState,
+    unit_action::UnitAnimation,
 };
 
 pub struct RockPlugin;
@@ -17,18 +17,18 @@ impl Plugin for RockPlugin {
     fn build(&self, app: &mut App) {
         app
             //
-            .register_inspectable::<Rock>();
+            .register_type::<Rock>();
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Component, Inspectable)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Component, Reflect)]
 pub struct Rock;
 
 pub fn spawn_rock(
     commands: &mut Commands,
     position: Vec2,
 
-    asset_server: &mut Res<AssetServer>,
+    asset_server: &Res<AssetServer>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
 ) -> Entity {
     let id = unit::spawn_unit(
@@ -37,15 +37,14 @@ pub fn spawn_rock(
             unit: Unit {
                 dead: false,
                 hp: 1,
+                hp_max: 1,
+                atk: 1,
                 movement_speed: 0.0,
-                action_id: ActionId::Idle,
-                action_state: ActionState::Active,
-                action_time: None,
-                action_data: ActionData::None,
                 stun: 0.0,
             },
+            team: Team::Enemy,
             translation: position,
-            action_ids: vec![ActionId::Idle],
+            action_ids: vec![SkillId::Idle],
             texture_path: "images/rock/rock.png",
             texture_columns: 2,
             texture_rows: 1,

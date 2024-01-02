@@ -1,8 +1,13 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::{Inspectable, RegisterInspectable};
-use bevy_rapier2d::prelude::*;
 
 use crate::utils::Knockback;
+
+use super::{
+    actions::skill_id::SkillId,
+    hit::HitEvent,
+    unit::{Unit, UnitDieEvent},
+    unit_state::{ChangeActionRequest, UnitState},
+};
 
 pub struct DamagePlugin;
 
@@ -10,14 +15,18 @@ impl Plugin for DamagePlugin {
     fn build(&self, app: &mut App) {
         app
             //
-            .add_system(hit_detection)
-            .register_inspectable::<HitBox>()
-            .add_event::<HitEvent>();
+            .register_type::<OnHitDamage>()
+            .add_event::<HitDamageEvent>()
+            .add_system(on_hit_damage)
+            .add_event::<DamageEvent>()
+            .add_system(damage_event)
+            .add_event::<HealEvent>()
+            .add_system(heal_event);
     }
 }
 
-#[derive(Debug, Component, Inspectable)]
-pub struct HitBox {
+#[derive(Debug, Component, Reflect)]
+pub struct OnHitDamage {
     pub source: Entity,
     pub damage: i32,
     pub hit_stun: f32,
@@ -25,7 +34,7 @@ pub struct HitBox {
 }
 
 #[derive(Debug)]
-pub struct HitEvent {
+pub struct HitDamageEvent {
     pub source: Entity,
     pub victim: Entity,
     pub source_collider: Entity,
@@ -34,40 +43,72 @@ pub struct HitEvent {
     pub knockback: Knockback,
 }
 
-pub fn hit_detection(
-    mut collision_events: EventReader<CollisionEvent>,
-    mut events: EventWriter<HitEvent>,
-    query: Query<&HitBox>,
+pub fn on_hit_damage(
+    mut events: EventReader<HitEvent>,
+    mut sends: EventWriter<HitDamageEvent>,
+    query: Query<&OnHitDamage>,
 ) {
-    for collision_event in collision_events.iter() {
-        info!("Received collision event: {:?}", collision_event);
-        match collision_event {
-            CollisionEvent::Started(e1, e2, _flag) => {
-                let r = {
-                    let mut temp = None;
-                    if let Ok(hit_box) = query.get(*e1) {
-                        if *e2 != hit_box.source {
-                            temp = Some((hit_box, *e2, *e1));
-                        }
-                    } else if let Ok(hit_box) = query.get(*e2) {
-                        if *e1 != hit_box.source {
-                            temp = Some((hit_box, *e1, *e2));
-                        }
+    for ev in events.iter() {
+        if let Ok(hit_box) = query.get(ev.hit_entity) {
+            let e = HitDamageEvent {
+                source: hit_box.source,
+                victim: ev.target_entity,
+                source_collider: ev.hit_entity,
+                damage: hit_box.damage,
+                hit_stun: hit_box.hit_stun,
+                knockback: hit_box.knockback,
+            };
+            info!("Send HitDamageEvent: {e:?}");
+            sends.send(e);
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct DamageEvent {
+    pub unit: Entity,
+    pub source_unit: Option<Entity>,
+    pub damage: i32,
+}
+fn damage_event(
+    mut events: EventReader<DamageEvent>,
+    mut query: Query<&mut Unit>,
+    mut die_events: EventWriter<UnitDieEvent>,
+    mut change_events: EventWriter<ChangeActionRequest>,
+) {
+    for ev in events.iter() {
+        if let Ok(mut unit) = query.get_mut(ev.unit) {
+            unit.hp -= ev.damage;
+            if unit.hp <= 0 && !unit.dead {
+                unit.dead = true;
+                die_events.send(UnitDieEvent(ev.unit));
+                change_events.send(ChangeActionRequest {
+                    action_id: SkillId::Dead,
+                    command: default(),
+                    entity: ev.unit,
+                });
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct HealEvent {
+    pub unit: Entity,
+    pub source_unit: Option<Entity>,
+    pub heal: i32,
+}
+fn heal_event(mut events: EventReader<HealEvent>, mut query: Query<(&mut Unit, &UnitState)>) {
+    for ev in events.iter() {
+        if let Ok((mut unit, us)) = query.get_mut(ev.unit) {
+            if !unit.dead && us.action_id != SkillId::Dead {
+                if unit.hp < unit.hp_max {
+                    unit.hp += ev.heal;
+                    if unit.hp > unit.hp_max {
+                        unit.hp = unit.hp_max;
                     }
-                    temp
-                };
-                if let Some((hit_box, victim, source_collider)) = r {
-                    events.send(HitEvent {
-                        source: hit_box.source,
-                        victim,
-                        source_collider,
-                        damage: hit_box.damage,
-                        hit_stun: hit_box.hit_stun,
-                        knockback: hit_box.knockback,
-                    });
                 }
             }
-            CollisionEvent::Stopped(_, _, _) => {}
         }
     }
 }

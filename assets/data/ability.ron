@@ -1,0 +1,54 @@
+[
+    Ability(
+        name: "AOE Damage",
+        description: "Huge damage to target and small damage to others",
+        ability_type: Active(Enemy),
+        effects:[
+            (Target, Damage(10)),
+            (AllEnemyExceptTarget, Damage(5)),
+        ],
+    ),
+    Ability(
+        name: "Heal",
+        description: "heal skill~~~~",
+        ability_type: Active(None),
+        effects:[
+            (AllAlliance, Heal(5)),
+        ],
+    ),
+    Ability(
+        name: "Damage And Heal",
+        description: "damage then heal",
+        ability_type: Active(Enemy),
+        effects:[
+            (Target, Damage(5)),
+            (Source, Heal(5)),
+        ],
+    ),
+    Ability(
+        name: "Enhance",
+        description: "attack up",
+        ability_type: Active(None),
+        effects:[
+            (Source, AttackUp(1)),
+        ],
+    ),
+
+    Ability(
+        name: "Counterattack on attacked",
+        description: "Damage opponent and heal self",
+        ability_type: Passive(OnAttacked),
+        effects:[
+            (Target, Damage(1)),
+            (Source, Heal(1)),
+        ],
+    ),
+    Ability(
+        name: "Heal on Trun Start",
+        description: "Heal all alliance",
+        ability_type: Passive(TrunStart),
+        effects:[
+            (AllAlliance, Heal(1)),
+        ],
+    ),
+]

@@ -1,4 +1,5 @@
 {
     "lldb.evaluationTimeout": 10,
     "lldb.showDisassembly": "never",
+    "rust-analyzer.check.command": "clippy",
 }

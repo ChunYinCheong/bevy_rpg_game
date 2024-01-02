@@ -1,3 +1,4 @@
+use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -8,7 +9,8 @@ pub const TILE_SIZE: i32 = 64;
 /// Number of tile in world chunk
 pub const CHUNK_SIZE: i32 = 8;
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, Reflect)]
+#[reflect_value()]
 pub struct SpatialMap {
     map: HashMap<(i32, i32), Vec<GameObjectId>>,
     r_map: HashMap<GameObjectId, (i32, i32)>,
@@ -38,7 +40,7 @@ impl SpatialMap {
     }
 
     pub fn remove(&mut self, id: &GameObjectId) {
-        if let Some(map_key) = self.r_map.remove(&id) {
+        if let Some(map_key) = self.r_map.remove(id) {
             if let Some(v) = self.map.get_mut(&map_key) {
                 v.retain(|i| i != id);
             }

@@ -1,16 +1,15 @@
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext};
-use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use bevy_rapier2d::prelude::*;
 use std::{collections::HashMap, time::Duration};
 
-use crate::{INTERACT_GROUP, RAPIER_SCALE};
+use crate::{ALL_GROUP, INTERACT_GROUP, RAPIER_SCALE};
 
 use super::{
     animation::{AnimationData, AnimationSheet, AnimationState},
     interaction::Interaction,
     item::{Inventory, ItemId},
-    player::Player,
+    player::Hero,
     unit_action::UnitAnimation,
 };
 
@@ -20,7 +19,7 @@ impl Plugin for ShopPlugin {
     fn build(&self, app: &mut App) {
         app
             //
-            .register_inspectable::<Shop>()
+            .register_type::<Shop>()
             .add_system(open_shop)
             .add_system(shop_ui)
             .add_system(buy_item)
@@ -30,18 +29,19 @@ impl Plugin for ShopPlugin {
     }
 }
 
-#[derive(Debug, Default, Component, Inspectable)]
+#[derive(Debug, Clone, Default, Component, Reflect)]
+#[reflect_value()]
 pub struct Shop {
     pub items: Vec<ShopItem>,
 }
 
-#[derive(Debug, Default, Clone, Inspectable)]
+#[derive(Debug, Default, Clone, Reflect)]
 pub struct ShopItem {
     pub item_id: ItemId,
     pub price: i32,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Resource)]
 pub struct ShopRes {
     pub show: bool,
     pub shop_items: Vec<ShopItem>,
@@ -62,15 +62,16 @@ pub struct BuyEvent {
 pub fn spawn_shop(
     commands: &mut Commands,
     position: Vec2,
-    asset_server: &mut Res<AssetServer>,
+    asset_server: &Res<AssetServer>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
 ) -> Entity {
     let animation_entity = {
         let texture_handle = asset_server.load("images/player/spritesheet.png");
-        let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 10, 1);
+        let texture_atlas =
+            TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 10, 1, None, None);
         let texture_atlas_handle = texture_atlases.add(texture_atlas);
         commands
-            .spawn_bundle(SpriteSheetBundle {
+            .spawn(SpriteSheetBundle {
                 texture_atlas: texture_atlas_handle,
                 transform: Transform {
                     translation: Vec3::new(0.0, 0.0, 1.0),
@@ -100,14 +101,14 @@ pub fn spawn_shop(
     };
     commands
         .entity(animation_entity)
-        .insert_bundle(SpatialBundle {
+        .insert(SpatialBundle {
             transform: Transform::from_translation(position.extend(1.0)),
             ..Default::default()
         })
         .insert(Name::from("Shop"))
         .insert(RigidBody::Fixed)
         .insert(Collider::ball(0.5 * RAPIER_SCALE))
-        .insert(CollisionGroups::new(INTERACT_GROUP, u32::MAX))
+        .insert(CollisionGroups::new(INTERACT_GROUP, ALL_GROUP))
         .insert(Shop {
             items: vec![
                 ShopItem {
@@ -136,7 +137,7 @@ fn shop_ui(
     mut egui_context: ResMut<EguiContext>,
     mut shop: ResMut<ShopRes>,
     mut buy_events: EventWriter<BuyEvent>,
-    player: Query<Entity, With<Player>>,
+    player: Query<Entity, With<Hero>>,
 ) {
     let mut show = shop.show;
     egui::Window::new("Shop")

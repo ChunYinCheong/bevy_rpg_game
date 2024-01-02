@@ -1,0 +1,5 @@
+(
+    blocking: false,
+    hx: 512.0,
+    hy: 32.0,
+)

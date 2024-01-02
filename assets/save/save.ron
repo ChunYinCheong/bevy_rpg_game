@@ -1,0 +1,21 @@
+(
+    data: (
+        objects: {},
+        units: {},
+        transforms: {},
+        resets: {},
+        blockers: {},
+        areas: {},
+        inventorys: {},
+        equipments: {},
+        chests: {},
+        enter_triggers: {},
+        die_triggers: {},
+        collision_groupss: {},
+        animation_states: {},
+    ),
+    map: (
+        map: {},
+        r_map: {},
+    ),
+)

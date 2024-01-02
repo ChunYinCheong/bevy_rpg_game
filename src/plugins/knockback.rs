@@ -1,12 +1,11 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 
 use crate::{
     res::GameWorldConfig,
     utils::{self, Knockback},
 };
 
-use super::damage::HitEvent;
+use super::damage::HitDamageEvent;
 
 pub struct KnockbackPlugin;
 
@@ -15,7 +14,7 @@ impl Plugin for KnockbackPlugin {
         app
             //
             // .add_system(hit_detection)
-            .register_inspectable::<KnockbackVec>()
+            .register_type::<KnockbackVec>()
             .add_system(on_hit)
             .add_system(knockback)
             // .add_event::<HitEvent>()
@@ -23,7 +22,7 @@ impl Plugin for KnockbackPlugin {
     }
 }
 
-#[derive(Debug, Default, Component, Inspectable)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct KnockbackVec {
     pub knockbacks: Vec<(Vec2, f32)>,
 }
@@ -31,7 +30,7 @@ pub struct KnockbackVec {
 pub const KNOCKBACK_DURATION: f32 = 0.1;
 
 pub fn on_hit(
-    mut events: EventReader<HitEvent>,
+    mut events: EventReader<HitDamageEvent>,
 
     transfomr_q: Query<(&GlobalTransform,)>,
     mut unit_q: Query<(&mut KnockbackVec,)>,
@@ -41,6 +40,7 @@ pub fn on_hit(
 
         if let Ok((mut unit,)) = unit_q.get_mut(ev.victim) {
             match ev.knockback {
+                Knockback::None => {}
                 Knockback::Center(f) => {
                     let (hit_tran,) = transfomr_q.get(ev.source_collider).unwrap();
                     let (tran,) = transfomr_q.get(ev.victim).unwrap();

@@ -4,13 +4,14 @@ use bevy_inspector_egui::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::{player::Player, unit_action::ActionId};
+use super::actions::skill_id::SkillId;
+use super::player::Hero;
 
 pub struct ItemPlugin;
 impl Plugin for ItemPlugin {
     fn build(&self, app: &mut App) {
-        app.register_inspectable::<Inventory>()
-            .register_inspectable::<Equipment>()
+        app.register_type::<Inventory>()
+            .register_type::<Equipment>()
             .init_resource::<InventoryUiRes>()
             .add_system(inventory_ui)
             .add_event::<OpenInventoryEvent>()
@@ -22,13 +23,14 @@ impl Plugin for ItemPlugin {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, Component, Inspectable)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, Component, Reflect)]
+#[reflect_value()]
 pub struct Inventory {
     pub items: HashMap<ItemId, i32>,
     pub money: i32,
 }
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Inspectable)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Reflect)]
 pub enum ItemId {
     None,
     Unknown,
@@ -66,48 +68,57 @@ impl ItemId {
         match self {
             ItemId::None => ItemaSetting {
                 name: "None".to_string(),
+                icon: "images/chest/chest.png".to_string(),
                 kind: ItemKind::None,
             },
             ItemId::Unknown => {
                 error!("Unknown ItemId setting");
                 ItemaSetting {
                     name: "Unknown".to_string(),
+                    icon: "images/chest/chest.png".to_string(),
                     kind: ItemKind::None,
                 }
             }
             ItemId::HpPotion => ItemaSetting {
                 name: "HpPotion".to_string(),
+                icon: "images/chest/chest.png".to_string(),
                 kind: ItemKind::Consume,
             },
             ItemId::MpPotion => ItemaSetting {
                 name: "MpPotion".to_string(),
+                icon: "images/chest/chest.png".to_string(),
                 kind: ItemKind::Consume,
             },
             ItemId::Sword => ItemaSetting {
                 name: "Sword".to_string(),
+                icon: "images/reset_point/reset_point.png".to_string(),
                 kind: ItemKind::Weapon(Weapon {
-                    main_action_id: ActionId::Attack,
-                    sub_action_id: ActionId::ForbiddenArray,
+                    main_action_id: SkillId::Slash,
+                    sub_action_id: SkillId::ForbiddenArray,
                 }),
             },
             ItemId::Spear => ItemaSetting {
                 name: "Spear".to_string(),
+                icon: "images/chest/chest.png".to_string(),
                 kind: ItemKind::Weapon(Weapon {
-                    main_action_id: ActionId::Stab,
-                    sub_action_id: ActionId::IceSpear,
+                    main_action_id: SkillId::Stab,
+                    sub_action_id: SkillId::IceSpear,
                 }),
             },
         }
     }
 }
 
-#[derive(Debug, Default, Clone, Component, Inspectable)]
+#[derive(Debug, Default, Clone, Component, Reflect)]
+#[reflect_value()]
 pub struct ItemaSetting {
     pub name: String,
+    pub icon: String,
     pub kind: ItemKind,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Inspectable)]
+#[derive(Debug, Clone, Serialize, Deserialize, Reflect)]
+#[reflect_value()]
 pub enum ItemKind {
     None,
     Weapon(Weapon),
@@ -119,14 +130,14 @@ impl Default for ItemKind {
     }
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize, Inspectable)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, Reflect)]
 pub struct Weapon {
-    pub main_action_id: ActionId,
-    pub sub_action_id: ActionId,
+    pub main_action_id: SkillId,
+    pub sub_action_id: SkillId,
 }
 
 #[derive(
-    Debug, Default, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Inspectable, Component,
+    Debug, Default, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Reflect, Component,
 )]
 pub struct Equipment {
     pub current: usize,
@@ -144,14 +155,14 @@ fn open_inventory_ui(
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Resource)]
 pub struct InventoryUiRes {
     pub show: bool,
 }
 pub fn inventory_ui(
     mut egui_context: ResMut<EguiContext>,
     mut inventory_ui: ResMut<InventoryUiRes>,
-    query: Query<(&Inventory, &Equipment), With<Player>>,
+    query: Query<(&Inventory, &Equipment), With<Hero>>,
     mut events: EventWriter<EquipEvent>,
     mut switch_events: EventWriter<SwitchEquipment>,
 ) {
@@ -174,10 +185,8 @@ pub fn inventory_ui(
                                 ui.visuals_mut().override_text_color = Some(egui::Color32::RED);
                             }
                             let w = equipment.weapons[0];
-                            if ui.button(w.setting().name).clicked() {
-                                if equipment.current != 0 {
-                                    switch_events.send(SwitchEquipment { slot: 0 });
-                                }
+                            if ui.button(w.setting().name).clicked() && equipment.current != 0 {
+                                switch_events.send(SwitchEquipment { slot: 0 });
                             };
                         });
                         ui.separator();
@@ -186,10 +195,8 @@ pub fn inventory_ui(
                                 ui.visuals_mut().override_text_color = Some(egui::Color32::RED);
                             }
                             let w = equipment.weapons[1];
-                            if ui.button(w.setting().name).clicked() {
-                                if equipment.current != 1 {
-                                    switch_events.send(SwitchEquipment { slot: 1 });
-                                }
+                            if ui.button(w.setting().name).clicked() && equipment.current != 1 {
+                                switch_events.send(SwitchEquipment { slot: 1 });
                             };
                         });
                         ui.separator();
@@ -198,10 +205,8 @@ pub fn inventory_ui(
                                 ui.visuals_mut().override_text_color = Some(egui::Color32::RED);
                             }
                             let w = equipment.weapons[2];
-                            if ui.button(w.setting().name).clicked() {
-                                if equipment.current != 2 {
-                                    switch_events.send(SwitchEquipment { slot: 2 });
-                                }
+                            if ui.button(w.setting().name).clicked() && equipment.current != 2 {
+                                switch_events.send(SwitchEquipment { slot: 2 });
                             };
                         });
                     });
@@ -247,10 +252,7 @@ pub struct EquipEvent {
     pub slot: usize,
     pub item_id: ItemId,
 }
-pub fn equip(
-    mut events: EventReader<EquipEvent>,
-    mut query: Query<(&mut Equipment,), With<Player>>,
-) {
+pub fn equip(mut events: EventReader<EquipEvent>, mut query: Query<(&mut Equipment,), With<Hero>>) {
     for ev in events.iter() {
         if let Ok((mut equipment,)) = query.get_single_mut() {
             equipment.weapons[ev.slot] = ev.item_id;
@@ -263,7 +265,7 @@ pub struct SwitchEquipment {
 }
 pub fn switch(
     mut events: EventReader<SwitchEquipment>,
-    mut query: Query<(&mut Equipment,), With<Player>>,
+    mut query: Query<(&mut Equipment,), With<Hero>>,
 ) {
     for ev in events.iter() {
         if let Ok((mut equipment,)) = query.get_single_mut() {

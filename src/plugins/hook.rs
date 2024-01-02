@@ -1,9 +1,8 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 
 use crate::res::GameWorldConfig;
 
-use super::damage::HitEvent;
+use super::hit::HitEvent;
 
 pub struct HookPlugin;
 
@@ -12,8 +11,8 @@ impl Plugin for HookPlugin {
         app
             //
             // .add_system(hit_detection)
-            .register_inspectable::<Hook>()
-            .register_inspectable::<Hooked>()
+            .register_type::<OnHitHook>()
+            .register_type::<Hooked>()
             .add_system(on_hit)
             .add_system(hook)
             // .add_event::<HitEvent>()
@@ -21,12 +20,12 @@ impl Plugin for HookPlugin {
     }
 }
 
-#[derive(Debug, Default, Component, Inspectable)]
-pub struct Hook {
+#[derive(Debug, Default, Component, Reflect)]
+pub struct OnHitHook {
     pub target: Vec2,
 }
 
-#[derive(Debug, Default, Component, Inspectable)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct Hooked {
     pub from: Vec2,
     pub to: Vec2,
@@ -38,14 +37,14 @@ pub struct Hooked {
 pub fn on_hit(
     mut events: EventReader<HitEvent>,
 
-    transfomr_q: Query<(&Hook, &GlobalTransform)>,
+    transfomr_q: Query<(&OnHitHook, &GlobalTransform)>,
     mut commands: Commands,
 ) {
     for ev in events.iter() {
         // info!("on_hit: {ev:?}");
-        if let Ok((hook, tran)) = transfomr_q.get(ev.source_collider) {
+        if let Ok((hook, tran)) = transfomr_q.get(ev.hit_entity) {
             let dir = hook.target - tran.translation().truncate();
-            commands.entity(ev.victim).insert(Hooked {
+            commands.entity(ev.target_entity).insert(Hooked {
                 from: tran.translation().truncate(),
                 to: hook.target,
                 duration: 0.2,

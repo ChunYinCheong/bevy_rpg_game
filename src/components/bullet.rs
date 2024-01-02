@@ -1,5 +1,4 @@
-use bevy::prelude::Component;
-use bevy_inspector_egui::Inspectable;
+use bevy::prelude::*;
 
-#[derive(Debug, Component, Inspectable)]
+#[derive(Debug, Component, Reflect)]
 pub struct Bullet {}

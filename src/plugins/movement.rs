@@ -1,12 +1,11 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::Inspectable;
 use bevy_rapier2d::prelude::*;
 
 use crate::{plugins::knockback::KNOCKBACK_DURATION, res::GameWorldConfig, RAPIER_SCALE};
 
 use super::{hook::Hooked, knockback::KnockbackVec};
 
-#[derive(Debug, Default, Component, Inspectable)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct Movement {
     pub direction: Vec2,
     pub speed: f32,

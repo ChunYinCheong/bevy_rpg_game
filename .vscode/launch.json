@@ -36,6 +36,36 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug executable 'bevy_rpg' Editor",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=bevy_rpg",
+                    "--package=bevy_rpg"
+                ],
+                "filter": {
+                    "name": "bevy_rpg",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}",
+                // "RUST_BACKTRACE": "1",
+                // "RUST_LOG": "info,wgpu=error,bevy_rpg=debug",
+                "GAME_LOG": "bevy_rpg=debug",
+                "BEVY_LOG": "info,wgpu=error",
+                "GAME_EDITOR": "true"
+            },
+            "sourceLanguages": [
+                "rust"
+            ]
+            // "terminal": "external"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in executable 'bevy_rpg'",
             "cargo": {
                 "args": [

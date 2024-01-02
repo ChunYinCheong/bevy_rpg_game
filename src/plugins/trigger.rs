@@ -1,13 +1,11 @@
 use std::{fmt::Debug, marker::PhantomData};
 
 use bevy::prelude::*;
-use bevy_inspector_egui::Inspectable;
 use serde::{Deserialize, Serialize};
 
 use super::{
     area::{Area, PlayerEnterEvent},
     blocker::Blocker,
-    editor::EditorRes,
     game_world::GameObjectId,
     save::SaveBuffer,
     unit::UnitDieEvent,
@@ -20,30 +18,52 @@ impl Plugin for TriggerPlugin {
             //
             .add_event::<TriggerAction>()
             .add_system(action)
-            // .register_inspectable::<EventTrigger<UnitDieEvent>>()
+            // .register_type::<EventTrigger<UnitDieEvent>>()
             .add_system(event_action::<UnitDieEvent>)
-            // .register_inspectable::<EventTrigger<PlayerEnterEvent>>()
+            // .register_type::<EventTrigger<PlayerEnterEvent>>()
             .add_system(event_action::<PlayerEnterEvent>)
             // ...
             ;
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Inspectable)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Reflect)]
+#[reflect_value()]
 pub enum TriggerAction {
+    None,
     ShowBlocker(GameObjectId),
     HideBlocker(GameObjectId),
     DisableArea(GameObjectId),
 }
+impl TriggerAction {
+    pub(crate) fn new(action: &str, entity_iid: String) -> TriggerAction {
+        match action {
+            "ShowBlocker" => TriggerAction::ShowBlocker(GameObjectId(entity_iid)),
+            "HideBlocker" => TriggerAction::HideBlocker(GameObjectId(entity_iid)),
+            "DisableArea" => TriggerAction::DisableArea(GameObjectId(entity_iid)),
+            _ => {
+                error!("Unknown TriggerAction name: {}", action);
+                TriggerAction::None
+            }
+        }
+    }
+}
+
+impl Default for TriggerAction {
+    fn default() -> Self {
+        Self::None
+    }
+}
 fn action(
     mut ev: EventReader<TriggerAction>,
-    editor: Res<EditorRes>,
     mut save: ResMut<SaveBuffer>,
     mut blocker_query: Query<(&mut Blocker, &GameObjectId)>,
     mut area_query: Query<(&mut Area, &GameObjectId)>,
 ) {
     for e in ev.iter() {
+        // debug!("{e:?}");
         match e {
+            TriggerAction::None => {}
             TriggerAction::ShowBlocker(target) => {
                 for (mut blocker, id) in blocker_query.iter_mut() {
                     if target == id {
@@ -55,11 +75,14 @@ fn action(
                         blocker.blocking = true;
                     }
                     None => {
-                        if let Some(blocker) = editor.ecs.blockers.get(target) {
-                            let mut blocker = blocker.clone();
-                            blocker.blocking = true;
-                            save.0.data.blockers.insert(target.clone(), blocker);
-                        }
+                        save.0.data.blockers.insert(
+                            target.clone(),
+                            Blocker {
+                                blocking: true,
+                                hx: 0.0,
+                                hy: 0.0,
+                            },
+                        );
                     }
                 }
             }
@@ -74,11 +97,14 @@ fn action(
                         blocker.blocking = false;
                     }
                     None => {
-                        if let Some(blocker) = editor.ecs.blockers.get(target) {
-                            let mut blocker = blocker.clone();
-                            blocker.blocking = false;
-                            save.0.data.blockers.insert(target.clone(), blocker);
-                        }
+                        save.0.data.blockers.insert(
+                            target.clone(),
+                            Blocker {
+                                blocking: false,
+                                hx: 0.0,
+                                hy: 0.0,
+                            },
+                        );
                     }
                 }
             }
@@ -93,11 +119,14 @@ fn action(
                         area.disable = true;
                     }
                     None => {
-                        if let Some(area) = editor.ecs.areas.get(target) {
-                            let mut area = area.clone();
-                            area.disable = true;
-                            save.0.data.areas.insert(target.clone(), area);
-                        }
+                        save.0.data.areas.insert(
+                            target.clone(),
+                            Area {
+                                hx: 0.0,
+                                hy: 0.0,
+                                disable: true,
+                            },
+                        );
                     }
                 }
             }
@@ -105,20 +134,25 @@ fn action(
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Component)]
-pub struct EventTrigger<T> {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Component, Default, Reflect)]
+#[reflect_value()]
+pub struct EventTrigger<T: Reflect + Clone> {
+    // #[inspectable(ignore)]
+    #[reflect(ignore)]
     pub event: PhantomData<T>,
     pub actions: Vec<TriggerAction>,
 }
-fn event_action<T: bevy::ecs::event::Event + TriggerEvent + Debug>(
+fn event_action<T: bevy::ecs::event::Event + TriggerEvent + Debug + Reflect + Clone>(
     mut ev: EventReader<T>,
     query: Query<&EventTrigger<T>>,
     mut action_ev: EventWriter<TriggerAction>,
 ) {
+    // debug!("event_action: {:?}", ev.len());
     for e in ev.iter() {
         debug!("{e:?}");
         let entity = e.entity();
         if let Ok(t) = query.get(entity) {
+            // debug!("{e:?}, actions: {:?}", t.actions.clone().into_iter());
             action_ev.send_batch(t.actions.clone().into_iter());
         }
     }
